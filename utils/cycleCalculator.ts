@@ -3,14 +3,9 @@ import { PeriodLog, CyclePhase } from '../types';
 
 export const calculateNextPeriod = (logs: PeriodLog[], avgCycle: number = 28) => {
   if (!logs || logs.length === 0) return null;
-  const sorted = [...logs]
-    .filter(l => l.date || (l as any).startDate)
-    .sort((a, b) => (a.date || (a as any).startDate).localeCompare(b.date || (b as any).startDate));
-  
-  if (sorted.length === 0) return null;
-  
-  // Find the start of the most recent period
   const starts = getPeriodStartDates(logs);
+  if (starts.length === 0) return null;
+  
   const lastStart = starts[starts.length - 1];
   return addDays(lastStart, avgCycle);
 };
@@ -28,17 +23,17 @@ export const getPhaseForDate = (targetDate: Date, logs: PeriodLog[], avgCycle: n
   const starts = getPeriodStartDates(logs);
   if (starts.length === 0) return CyclePhase.FOLLICULAR;
 
-  // Find the closest period start date before or on the target date
   const sortedStarts = [...starts].sort((a, b) => b.getTime() - a.getTime());
   let lastStart = sortedStarts.find(s => isBefore(s, targetDate) || isSameDay(s, targetDate));
 
   if (!lastStart) {
-    // If we're looking at a date before our first log, we can't accurately predict.
-    // However, for the calendar's sake, we project backwards or default.
-    return CyclePhase.FOLLICULAR;
+    // If date is before any logs, project based on first known start
+    const firstStart = sortedStarts[sortedStarts.length - 1];
+    const daysBefore = differenceInDays(firstStart, targetDate);
+    const dayInCycle = (avgCycle - (daysBefore % avgCycle)) % avgCycle;
+    return determinePhase(dayInCycle || avgCycle, avgCycle, avgPeriod);
   }
 
-  // Calculate day in cycle
   const day = differenceInDays(startOfDay(targetDate), startOfDay(lastStart)) + 1;
   const normalizedDay = ((day - 1) % avgCycle) + 1;
 
@@ -49,7 +44,7 @@ export const determinePhase = (day: number, avgCycle: number = 28, avgPeriod: nu
   if (day <= 0) return CyclePhase.FOLLICULAR;
   if (day <= avgPeriod) return CyclePhase.MENSTRUAL;
   if (day <= avgCycle - 14 - 3) return CyclePhase.FOLLICULAR;
-  if (day <= avgCycle - 14 + 3) return CyclePhase.OVULATION;
+  if (day <= avgCycle - 14 + 2) return CyclePhase.OVULATION;
   return CyclePhase.LUTEAL;
 };
 
@@ -66,18 +61,16 @@ export const getCycleSummary = (logs: PeriodLog[], defaultAvg: number = 28) => {
 
 export const getPeriodStartDates = (logs: PeriodLog[]): Date[] => {
   if (!logs || logs.length === 0) return [];
-  const sorted = [...logs]
-    .filter(l => l.date || (l as any).startDate)
-    .sort((a, b) => (a.date || (a as any).startDate).localeCompare(b.date || (b as any).startDate));
+  const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date));
     
   if (sorted.length === 0) return [];
 
-  const firstDateStr = sorted[0].date || (sorted[0] as any).startDate;
-  const starts: Date[] = [parseISO(firstDateStr)];
+  const starts: Date[] = [parseISO(sorted[0].date)];
   
   for (let i = 1; i < sorted.length; i++) {
-    const d1 = parseISO(sorted[i].date || (sorted[i] as any).startDate);
-    const d2 = parseISO(sorted[i-1].date || (sorted[i-1] as any).startDate);
+    const d1 = parseISO(sorted[i].date);
+    const d2 = parseISO(sorted[i-1].date);
+    // If days are more than 2 apart, consider it a new period start
     if (differenceInDays(d1, d2) > 2) {
       starts.push(d1);
     }

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   format, 
@@ -98,11 +97,11 @@ const FullRoadmapModal: React.FC<RoadmapModalProps> = ({ userData, onClose, onDa
   const [baseDate, setBaseDate] = useState(new Date());
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Generate a long range (12 months back, 24 months forward)
+  // Generate a long range (6 months back, 12 months forward)
   const monthRange = useMemo(() => {
     const range = [];
-    const start = addMonths(baseDate, -12);
-    for (let i = 0; i < 36; i++) {
+    const start = addMonths(baseDate, -6);
+    for (let i = 0; i < 18; i++) {
       range.push(addMonths(start, i));
     }
     return range;
@@ -120,6 +119,7 @@ const FullRoadmapModal: React.FC<RoadmapModalProps> = ({ userData, onClose, onDa
     newDate = setYear(newDate, year);
     newDate = setMonth(newDate, monthIdx);
     setBaseDate(newDate);
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -204,6 +204,7 @@ const MonthGrid: React.FC<MonthGridProps> = ({ month, userData, onDayClick, avgC
   const isPredictedPeriod = (date: Date) => {
     if (periodStarts.length === 0) return false;
     const lastStart = periodStarts[periodStarts.length - 1];
+    // Check next 6 cycles
     for (let i = 1; i <= 6; i++) {
       const predictedStart = addDays(lastStart, avgCycle * i);
       const predictedEnd = addDays(predictedStart, avgPeriod - 1);

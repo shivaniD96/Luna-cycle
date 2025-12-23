@@ -101,11 +101,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userData, onImport, isSyncA
       <section className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-emerald-100 relative">
         <h3 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500"><path d="M21 12a9 9 0 0 0-9-9"/><path d="M3 12a9 9 0 0 0 9 9"/></svg>
-          Live Cloud Sync
+          Live Private Sync
         </h3>
-        <p className="text-sm text-gray-500 mb-6">Auto-save directly to a file in your personal Cloud folder.</p>
-        <button onClick={onEnableSync} className={`w-full py-4 rounded-2xl font-bold shadow-md ${isSyncActive ? 'bg-white text-emerald-600 border border-emerald-200' : 'bg-emerald-600 text-white'}`}>
-          {isSyncActive ? 'Change Sync File' : 'Enable Live Sync'}
+        <p className="text-sm text-gray-500 mb-6">Pick a file inside your personal iCloud, Dropbox, or Google Drive folder. Luna will auto-sync there so only you have the data.</p>
+        <button onClick={onEnableSync} className={`w-full py-4 rounded-2xl font-bold shadow-md transition-all ${isSyncActive ? 'bg-white text-emerald-600 border border-emerald-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}>
+          {isSyncActive ? 'Syncing to File ✓' : 'Connect to Sync Folder'}
         </button>
       </section>
 
