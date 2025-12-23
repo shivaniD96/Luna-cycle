@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { format, differenceInDays } from 'date-fns';
 import { UserData, PartnerData, LogPayload } from './types';
@@ -30,7 +31,6 @@ const App: React.FC = () => {
 
     try {
       const parsed = JSON.parse(saved);
-      // Data Migration: Convert old 'startDate' format to new 'date' format
       if (parsed.logs) {
         parsed.logs = parsed.logs.map((log: any) => ({
           ...log,
@@ -39,7 +39,6 @@ const App: React.FC = () => {
       }
       return parsed;
     } catch (e) {
-      console.error("Failed to parse saved data", e);
       return {
         logs: [],
         symptoms: [],
@@ -183,39 +182,33 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-24 relative">
-      <header className="p-8 md:p-12 flex items-center justify-between max-w-5xl mx-auto">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-white rounded-2xl shadow-sm border border-rose-100 flex items-center justify-center text-2xl animate-bounce duration-3000">
-            {PHASE_ICONS[currentPhase] || '✨'}
-          </div>
-          <div>
-            <h1 className="text-4xl font-serif text-rose-900 tracking-tight leading-none">Luna</h1>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-[10px] text-rose-400 font-bold uppercase tracking-[0.2em] bg-white/50 px-2 py-0.5 rounded-full border border-rose-100">Private</span>
-              {isSyncActive && (
-                <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-50 rounded-full border border-emerald-100">
-                  <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>
-                  <span className="text-[9px] text-emerald-600 font-bold uppercase">Live Sync</span>
-                </div>
-              )}
+      <header className="p-8 md:p-12 max-w-5xl mx-auto">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white rounded-2xl shadow-sm border border-rose-100 flex items-center justify-center text-2xl">
+              {PHASE_ICONS[currentPhase] || '✨'}
+            </div>
+            <div>
+              <h1 className="text-4xl font-serif text-rose-900 leading-none">Luna</h1>
+              <p className="text-[10px] text-rose-300 font-bold uppercase tracking-[0.2em] mt-1">Private Companion</p>
             </div>
           </div>
+          <div className="flex gap-2">
+             <button onClick={generateShareLink} className="p-4 bg-white/70 text-rose-400 rounded-2xl border border-white hover:shadow-md transition-all squishy">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/></svg>
+              </button>
+              <button onClick={() => setIsUnlocked(false)} className="p-4 bg-rose-50/50 text-rose-400 rounded-2xl border border-rose-100 hover:text-rose-600 transition-all squishy">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </button>
+          </div>
         </div>
-        <div className="flex gap-3">
-           <button 
-            onClick={generateShareLink}
-            className="p-4 bg-white/70 text-rose-400 rounded-3xl shadow-sm border border-white hover:shadow-md transition-all squishy"
-            title="Share with partner"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></svg>
-          </button>
-          <button 
-            onClick={() => setIsUnlocked(false)}
-            className="p-4 bg-rose-50/50 text-rose-400 rounded-3xl border border-rose-100 hover:text-rose-600 transition-all squishy"
-            title="Lock App"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          </button>
+
+        {/* STATUS HUB */}
+        <div className="flex gap-2 flex-wrap">
+          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[9px] font-bold uppercase tracking-wider ${isSyncActive ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-amber-50 border-amber-100 text-amber-600 cursor-pointer'}`} onClick={!isSyncActive ? () => setActiveTab('settings') : undefined}>
+            <div className={`w-1.5 h-1.5 rounded-full ${isSyncActive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></div>
+            {isSyncActive ? 'Synced' : 'Sync Disconnected'}
+          </div>
         </div>
       </header>
 
@@ -232,22 +225,6 @@ const App: React.FC = () => {
             </button>
           ))}
         </div>
-
-        {shareLink && (
-          <div className="bg-white border-2 border-dashed border-emerald-200 p-5 rounded-[2.5rem] flex flex-col md:flex-row items-center gap-4 text-emerald-800 text-sm animate-in zoom-in-95 duration-300">
-            <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 shrink-0">✨</div>
-            <span className="flex-1 font-medium">Link ready! Send this to your partner so they can support you with AI insights.</span>
-            <div className="flex gap-2 w-full md:w-auto">
-              <button 
-                onClick={() => {navigator.clipboard.writeText(shareLink); alert('Link copied!');}}
-                className="flex-1 md:flex-none px-6 py-2 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-100"
-              >
-                Copy Link
-              </button>
-              <button onClick={() => setShareLink(null)} className="p-2 text-emerald-300 hover:text-emerald-500 transition-colors">✕</button>
-            </div>
-          </div>
-        )}
 
         {activeTab === 'overview' && (
           <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -268,7 +245,7 @@ const App: React.FC = () => {
 
               <div className="bg-rose-50/50 rounded-[2.5rem] p-6 mb-4">
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                  {daysUntilNext === 0 ? "Period expected today!" : `Next period in ${daysUntilNext} days`}
+                  {daysUntilNext === 0 ? "Expected Today" : `${daysUntilNext} Days Remaining`}
                 </h2>
                 <p className="text-gray-500 max-w-md mx-auto leading-relaxed text-sm font-medium">
                   {PHASE_DESCRIPTIONS[currentPhase]}
@@ -282,16 +259,15 @@ const App: React.FC = () => {
                 className="bg-rose-400 text-white p-10 rounded-[3rem] shadow-xl shadow-rose-200 flex flex-col items-center justify-center gap-3 hover:bg-rose-500 transition-all squishy"
               >
                 <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-3xl">📝</div>
-                <span className="font-bold text-xl tracking-tight">Log Today</span>
+                <span className="font-bold text-xl tracking-tight">Log Flow</span>
               </button>
               
-              <div className="bg-indigo-50/80 text-indigo-700 p-10 rounded-[3rem] flex flex-col items-center justify-center gap-2 border border-indigo-100 glass-card">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-300">Your Average</span>
+              <div className="bg-indigo-50 text-indigo-700 p-10 rounded-[3rem] flex flex-col items-center justify-center gap-2 border border-indigo-100 glass-card">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-300">Average Cycle</span>
                 <div className="flex items-baseline gap-1">
                   <span className="text-5xl font-serif">{avgCycle}</span>
                   <span className="text-sm font-bold">days</span>
                 </div>
-                <div className="w-12 h-1 bg-indigo-200 rounded-full mt-2"></div>
               </div>
             </div>
 
@@ -300,6 +276,7 @@ const App: React.FC = () => {
               daysRemaining={daysUntilNext} 
               symptoms={currentDaySymptoms} 
               onShare={generateShareLink}
+              onOpenSettings={() => setActiveTab('settings')}
             />
           </div>
         )}
@@ -314,18 +291,6 @@ const App: React.FC = () => {
             onUpdateLock={handleUpdateLock}
           />
         )}
-
-        <footer className="pt-20 pb-10 text-center space-y-6">
-          <div className="flex items-center justify-center gap-2 text-rose-300 text-xs font-bold bg-white/80 border border-rose-50 py-3 px-6 rounded-full w-max mx-auto shadow-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
-            ENCRYPTED • PRIVATE • YOURS
-          </div>
-          {lastSyncTime && (
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">
-              Auto-saved to file: {format(lastSyncTime, 'hh:mm:ss a')}
-            </p>
-          )}
-        </footer>
       </main>
 
       <LogModal 

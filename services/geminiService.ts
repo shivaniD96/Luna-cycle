@@ -3,13 +3,14 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { AIAdviceRequest } from "../types";
 
 export const getCycleAdvice = async (req: AIAdviceRequest): Promise<string[]> => {
+  // Create instance right before call to capture any newly selected personal keys
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const roleInstruction = req.role === 'partner' 
-    ? `You are an empathetic support guide for a partner. The user is in their ${req.phase} phase. Symptoms: ${req.symptoms.join(', ') || 'none'}. Period in ${req.daysRemaining} days.`
-    : `You are a self-care expert for women. I am in my ${req.phase} phase. Symptoms: ${req.symptoms.join(', ') || 'none'}. Period in ${req.daysRemaining} days.`;
+    ? `Empathetic support guide for a partner. Phase: ${req.phase}. Symptoms: ${req.symptoms.join(', ') || 'none'}. Period in ${req.daysRemaining} days.`
+    : `Self-care expert for women. Phase: ${req.phase}. Symptoms: ${req.symptoms.join(', ') || 'none'}. Period in ${req.daysRemaining} days.`;
 
-  const prompt = `${roleInstruction} Provide exactly 3 concise, practical tips as a JSON array of strings named "tips". Do not include medical advice.`;
+  const prompt = `${roleInstruction} Provide exactly 3 short, helpful self-care tips as a JSON array of strings named "tips".`;
 
   try {
     const response = await ai.models.generateContent({
@@ -22,21 +23,26 @@ export const getCycleAdvice = async (req: AIAdviceRequest): Promise<string[]> =>
           properties: {
             tips: {
               type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "Actionable advice strings"
+              items: { type: Type.STRING }
             }
           },
           required: ["tips"]
         },
-        temperature: 0.8,
+        temperature: 0.7,
       },
     });
 
     const text = response.text || '{"tips": []}';
     const data = JSON.parse(text);
     return data.tips || [];
-  } catch (error) {
-    console.error("Gemini Error:", error);
-    return ["Your guide is catching its breath. Tap refresh in a moment for fresh wisdom!"];
+  } catch (error: any) {
+    const errorMsg = error?.toString() || "";
+    
+    if (errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("RESOURCE_EXHAUSTED")) {
+      return ["RATE_LIMIT_ERROR"];
+    }
+    
+    console.error("Gemini Insight Error:", error);
+    return ["Guide is offline. Try again in a moment!"];
   }
 };

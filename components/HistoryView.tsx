@@ -17,7 +17,7 @@ import {
   getYear
 } from 'date-fns';
 import { UserData, CyclePhase } from '../types';
-import { PHASE_COLORS, PHASE_ICONS } from '../constants';
+import { PHASE_COLORS, PHASE_DESCRIPTIONS } from '../constants';
 import { getPhaseForDate, getPeriodStartDates } from '../utils/cycleCalculator';
 
 interface HistoryViewProps {
@@ -25,17 +25,21 @@ interface HistoryViewProps {
   onDayClick: (date: string) => void;
 }
 
-const HistoryLegend = () => (
-  <div className="flex flex-wrap items-center justify-center gap-3 mb-6 px-2">
-    {Object.entries(PHASE_COLORS).map(([phase, color]) => (
-      <div key={phase} className="flex items-center gap-1.5 bg-white/50 px-2.5 py-1 rounded-full border border-rose-50/50 shadow-sm">
-        <div className={`w-2 h-2 rounded-full ${color}`}></div>
-        <span className="text-[9px] font-bold text-rose-800/60 uppercase tracking-widest">{phase}</span>
-      </div>
-    ))}
-    <div className="flex items-center gap-1.5 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100 shadow-sm">
-      <div className="w-2 h-2 rounded-full border border-dashed border-rose-300"></div>
-      <span className="text-[9px] font-bold text-rose-400 uppercase tracking-widest">Prediction</span>
+const PhaseDictionary = () => (
+  <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-rose-100 mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
+    <h4 className="text-[10px] font-bold text-rose-300 uppercase tracking-[0.2em] mb-4 px-2">Color Guide: Your 4 Phases</h4>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {Object.entries(PHASE_COLORS).map(([phase, color]) => (
+        <div key={phase} className="flex flex-col gap-2 p-3 rounded-2xl bg-rose-50/30 border border-rose-50/50">
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${color}`}></div>
+            <span className="text-[10px] font-bold text-rose-900 uppercase tracking-widest">{phase}</span>
+          </div>
+          <p className="text-[9px] text-rose-400 leading-tight font-medium">
+            {PHASE_DESCRIPTIONS[phase as CyclePhase].split('.')[0]}.
+          </p>
+        </div>
+      ))}
     </div>
   </div>
 );
@@ -48,10 +52,12 @@ const HistoryView: React.FC<HistoryViewProps> = ({ userData, onDayClick }) => {
   const avgPeriod = userData.settings.averagePeriodLength || 5;
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-12">
+      <PhaseDictionary />
+
       {/* Current Month Focused Card */}
       <div className="bg-white rounded-[3rem] p-8 shadow-xl shadow-rose-100/30 border border-white glass-card relative overflow-hidden">
-        <div className="flex items-center justify-between mb-6 relative z-10">
+        <div className="flex items-center justify-between mb-8 relative z-10">
           <div>
             <h3 className="text-3xl font-serif text-rose-900">{format(currentMonth, 'MMMM yyyy')}</h3>
             <p className="text-[10px] text-rose-300 font-bold uppercase tracking-[0.2em] mt-1">Hormonal Roadmap</p>
@@ -64,8 +70,6 @@ const HistoryView: React.FC<HistoryViewProps> = ({ userData, onDayClick }) => {
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:translate-x-1 transition-transform"><path d="m9 18 6-6-6-6"/></svg>
           </button>
         </div>
-
-        <HistoryLegend />
 
         <MonthGrid 
           month={currentMonth} 
@@ -80,18 +84,15 @@ const HistoryView: React.FC<HistoryViewProps> = ({ userData, onDayClick }) => {
       {/* Cycle Stats Summary */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-rose-50/50 p-6 rounded-[2.5rem] border border-rose-100 glass-card">
-          <p className="text-[10px] text-rose-300 font-bold uppercase tracking-widest mb-1">Consistency</p>
-          <div className="flex items-baseline gap-1">
-            <p className="text-3xl font-serif text-rose-900">{userData.logs.length > 3 ? 'Stable' : 'New User'}</p>
-          </div>
+          <p className="text-[10px] text-rose-300 font-bold uppercase tracking-widest mb-1">Status</p>
+          <p className="text-3xl font-serif text-rose-900">{userData.logs.length > 3 ? 'Active' : 'Tracking'}</p>
         </div>
         <div className="bg-indigo-50/50 p-6 rounded-[2.5rem] border border-indigo-100 glass-card">
-          <p className="text-[10px] text-indigo-300 font-bold uppercase tracking-widest mb-1">Total Logs</p>
+          <p className="text-[10px] text-indigo-300 font-bold uppercase tracking-widest mb-1">Logs</p>
           <p className="text-3xl font-serif text-indigo-900">{userData.logs.length + userData.symptoms.length}</p>
         </div>
       </div>
 
-      {/* Roadmap Overlay */}
       {isExpanded && (
         <FullRoadmapModal 
           userData={userData} 
@@ -142,17 +143,19 @@ const FullRoadmapModal: React.FC<RoadmapModalProps> = ({ userData, onClose, onDa
   return (
     <div className="fixed inset-0 z-[100] bg-[#fff9f8] animate-in fade-in zoom-in-95 duration-300 flex flex-col">
       <header className="p-6 md:p-10 bg-[#fff9f8]/95 backdrop-blur-xl border-b border-rose-50 shadow-sm relative z-20">
-        <div className="flex items-center justify-between mb-4 max-w-5xl mx-auto">
+        <div className="flex items-center justify-between mb-6 max-w-5xl mx-auto">
           <div>
-            <h2 className="text-4xl font-serif text-rose-900">Your Roadmap</h2>
-            <p className="text-[10px] text-rose-300 font-bold uppercase tracking-[0.2em] mt-1">Scroll for predictions</p>
+            <h2 className="text-4xl font-serif text-rose-900">Roadmap</h2>
+            <p className="text-[10px] text-rose-300 font-bold uppercase tracking-[0.2em] mt-1">Scroll for future predictions</p>
           </div>
           <button onClick={onClose} className="w-14 h-14 bg-white text-rose-400 rounded-[1.5rem] flex items-center justify-center hover:bg-rose-50 transition-all border border-rose-100 shadow-md">
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
         </div>
 
-        <HistoryLegend />
+        <div className="max-w-5xl mx-auto">
+           <PhaseDictionary />
+        </div>
 
         <div className="flex flex-col md:flex-row items-center gap-4 max-w-5xl mx-auto mt-4">
           <div className="flex items-center gap-2 bg-white/50 p-1.5 rounded-2xl border border-rose-50">
@@ -164,19 +167,17 @@ const FullRoadmapModal: React.FC<RoadmapModalProps> = ({ userData, onClose, onDa
               {years.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
-          
           <div className="flex flex-1 items-center gap-1 overflow-x-auto no-scrollbar pb-1">
             {months.map((m, idx) => (
               <button
                 key={m}
                 onClick={() => handleJump(getYear(baseDate), idx)}
-                className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shrink-0 ${baseDate.getMonth() === idx ? 'bg-rose-400 text-white shadow-lg' : 'bg-white/50 text-rose-300 hover:text-rose-500 border border-transparent hover:border-rose-100'}`}
+                className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shrink-0 ${baseDate.getMonth() === idx ? 'bg-rose-400 text-white shadow-lg' : 'bg-white/50 text-rose-300 hover:text-rose-500 border border-transparent'}`}
               >
                 {m}
               </button>
             ))}
           </div>
-
           <button onClick={() => { setBaseDate(new Date()); if (scrollRef.current) scrollRef.current.scrollTop = 0; }} className="px-6 py-2.5 bg-rose-900 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-rose-800 transition-colors shadow-lg">
             Today
           </button>
