@@ -20,17 +20,21 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   const [pinInput, setPinInput] = useState('');
   const [hasPersonalKey, setHasPersonalKey] = useState(false);
 
+  // Check key status on mount and whenever provider changes
   useEffect(() => {
-    const checkKey = async () => {
-      // @ts-ignore
-      if (window.aistudio && window.aistudio.hasSelectedApiKey) {
-        // @ts-ignore
-        const selected = await window.aistudio.hasSelectedApiKey();
-        setHasPersonalKey(selected);
+    const checkKeyStatus = async () => {
+      try {
+        const aiStudio = (window as any).aistudio;
+        if (aiStudio && typeof aiStudio.hasSelectedApiKey === 'function') {
+          const selected = await aiStudio.hasSelectedApiKey();
+          setHasPersonalKey(!!selected);
+        }
+      } catch (e) {
+        console.warn('AI Studio key check failed:', e);
       }
     };
-    checkKey();
-  }, []);
+    checkKeyStatus();
+  }, [userData.settings.aiProvider]);
 
   const handleSetPin = () => {
     if (pinInput.length === 4) {
@@ -42,111 +46,133 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const handleOpenKeySelector = async () => {
+  const handleOpenKeySelector = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const aiStudio = (window as any).aistudio;
+    
+    if (!aiStudio) {
+      alert('Personal API Key selection is only available when hosted in the AI Studio environment.');
+      return;
+    }
+
+    if (typeof aiStudio.openSelectKey !== 'function') {
+      alert('The key selector is not available in this environment.');
+      return;
+    }
+
     try {
-      // @ts-ignore
-      if (window.aistudio && window.aistudio.openSelectKey) {
-        // @ts-ignore
-        await window.aistudio.openSelectKey();
-        // Proceed as if successful per guidelines to mitigate race conditions
-        setHasPersonalKey(true);
-        alert('API Key selector opened. Once you select a key, your personal quota will be active!');
-      } else {
-        alert('Personal API Key selection is only available when hosted in the AI Studio environment. If you are running locally, please use the Grok/Custom option below.');
-      }
-    } catch (e) {
-      console.error('Error opening key selector:', e);
-      alert('Failed to open the key selector. Please try refreshing.');
+      await aiStudio.openSelectKey();
+      // Per guidelines, assume success to mitigate race condition
+      setHasPersonalKey(true);
+    } catch (err) {
+      console.error('Failed to open key selector:', err);
+      alert('There was an error opening the key selector. Please try again.');
     }
   };
 
-  const formatForNotion = async () => {
-    setIsFormatting(true);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `Format this cycle data into a beautiful Markdown table for Notion: ${JSON.stringify({ logs: userData.logs, symptoms: userData.symptoms })}`;
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-      });
-      setFormattedData(response.text || "Failed to format.");
-    } catch (error) {
-      setFormattedData("Error connecting to AI. Try again later.");
-    } finally {
-      setIsFormatting(false);
-    }
+  const selectProvider = (p: AIProvider) => {
+    onUpdateSettings({ aiProvider: p });
   };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       {/* AI BRAIN SELECTION */}
       <section className="bg-indigo-900 rounded-[2.5rem] p-8 shadow-xl text-white relative overflow-hidden">
-        <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <span className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-sm">🧠</span>
-          Brain Selection
+        <div className="absolute top-0 right-0 p-4 opacity-10">
+          <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v8"/><path d="m4.93 4.93 5.66 5.66"/><path d="M2 12h8"/><path d="m4.93 19.07 5.66-5.66"/><path d="M12 22v-8"/><path d="m19.07 19.07-5.66-5.66"/><path d="M22 12h-8"/><path d="m19.07 4.93-5.66 5.66"/></svg>
+        </div>
+
+        <h3 className="text-xl font-bold mb-4 flex items-center gap-2 relative z-10">
+          <span className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-sm shadow-inner">🧠</span>
+          AI Engine Control
         </h3>
         
-        <div className="flex bg-indigo-950/50 p-1 rounded-2xl mb-6">
+        <div className="flex bg-indigo-950/60 p-1.5 rounded-2xl mb-6 relative z-10 border border-white/5">
           <button 
-            onClick={() => onUpdateSettings({ aiProvider: 'gemini' })}
-            className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all ${userData.settings.aiProvider === 'gemini' ? 'bg-white text-indigo-900 shadow-lg' : 'text-indigo-300'}`}
+            type="button"
+            onClick={() => selectProvider('gemini')}
+            className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all duration-300 ${userData.settings.aiProvider === 'gemini' ? 'bg-white text-indigo-900 shadow-xl scale-100' : 'text-indigo-300 hover:text-white scale-95'}`}
           >
             Gemini Flash
           </button>
           <button 
-            onClick={() => onUpdateSettings({ aiProvider: 'grok' })}
-            className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all ${userData.settings.aiProvider === 'grok' ? 'bg-white text-indigo-900 shadow-lg' : 'text-indigo-300'}`}
+            type="button"
+            onClick={() => selectProvider('grok')}
+            className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all duration-300 ${userData.settings.aiProvider === 'grok' ? 'bg-white text-indigo-900 shadow-xl scale-100' : 'text-indigo-300 hover:text-white scale-95'}`}
           >
             Grok / Custom
           </button>
         </div>
 
-        {userData.settings.aiProvider === 'grok' ? (
-          <div className="space-y-4 animate-in fade-in zoom-in-95 duration-300">
-            <p className="text-indigo-200 text-xs px-2 leading-relaxed">
-              Enter your <strong>Grok (xAI)</strong> or OpenAI-compatible key below. This is great for bypassing free-tier limits.
-            </p>
-            <input 
-              type="password"
-              placeholder="xai-xxxxxxxxxxxx"
-              value={userData.settings.customApiKey || ''}
-              onChange={(e) => onUpdateSettings({ customApiKey: e.target.value })}
-              className="w-full bg-indigo-950/50 border border-indigo-700 rounded-xl px-4 py-3 text-white text-sm outline-none placeholder:text-indigo-700"
-            />
-          </div>
-        ) : (
-          <div className="space-y-4 animate-in fade-in zoom-in-95 duration-300">
-            <p className="text-indigo-200 text-xs px-2 leading-relaxed">
-              Using Google's most efficient model. If you hit rate limits, switch to Grok or connect your personal Google key.
-            </p>
-            <div className="space-y-3">
-              <button 
-                onClick={handleOpenKeySelector}
-                className={`w-full py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${hasPersonalKey ? 'bg-emerald-500 text-white shadow-lg' : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'}`}
-              >
-                {hasPersonalKey ? (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                    Personal Key Active
-                  </>
-                ) : (
-                  'Scale Personal Gemini Quota'
-                )}
-              </button>
-              {hasPersonalKey && (
-                <button 
-                  onClick={handleOpenKeySelector}
-                  className="w-full text-[10px] text-indigo-300 uppercase font-bold tracking-widest hover:text-white transition-colors"
-                >
-                  Change Selected Key
-                </button>
-              )}
+        <div className="relative z-10 min-h-[140px]">
+          {userData.settings.aiProvider === 'grok' ? (
+            <div className="space-y-4 animate-in fade-in zoom-in-95 duration-500">
+              <div className="flex justify-between items-end px-1">
+                <p className="text-indigo-200 text-[11px] leading-relaxed max-w-[70%]">
+                  Using <strong>xAI Grok</strong> or a custom OpenAI-compatible endpoint.
+                </p>
+                <span className="bg-indigo-500/30 px-2 py-0.5 rounded text-[9px] uppercase font-bold text-indigo-100 border border-white/10">Active</span>
+              </div>
+              <div className="relative">
+                <input 
+                  type="password"
+                  placeholder="Paste xAI or Groq key here..."
+                  autoFocus
+                  value={userData.settings.customApiKey || ''}
+                  onChange={(e) => onUpdateSettings({ customApiKey: e.target.value })}
+                  className="w-full bg-indigo-950/80 border border-indigo-700/50 rounded-xl px-4 py-4 text-white text-sm outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 transition-all placeholder:text-indigo-800"
+                />
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-indigo-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3L15.5 7.5z"/></svg>
+                </div>
+              </div>
+              <p className="text-[10px] text-indigo-400 font-bold tracking-tight px-1">
+                Your key is stored locally in this browser. Never shared.
+              </p>
             </div>
-            <p className="text-[10px] text-indigo-400 text-center font-bold px-4 leading-normal uppercase">
-              Note: Key selection requires a paid GCP project (billing documentation at ai.google.dev/gemini-api/docs/billing).
-            </p>
-          </div>
-        )}
+          ) : (
+            <div className="space-y-5 animate-in fade-in zoom-in-95 duration-500">
+              <p className="text-indigo-200 text-xs px-2 leading-relaxed">
+                Connect your personal Google project to unlock <strong>15 requests per minute</strong> for free. No more shared quota errors!
+              </p>
+              <div className="space-y-3">
+                <button 
+                  type="button"
+                  onClick={handleOpenKeySelector}
+                  className={`w-full py-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-3 border shadow-lg group ${hasPersonalKey ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-white/10 border-white/20 text-white hover:bg-white/20'}`}
+                >
+                  {hasPersonalKey ? (
+                    <>
+                      <div className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                      </div>
+                      Personal Quota Active
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:rotate-12 transition-transform"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+                      Link Personal API Key
+                    </>
+                  )}
+                </button>
+                {hasPersonalKey && (
+                  <button 
+                    type="button"
+                    onClick={handleOpenKeySelector}
+                    className="w-full text-[10px] text-indigo-400 uppercase font-bold tracking-widest hover:text-white transition-colors py-1"
+                  >
+                    Switch Project Key
+                  </button>
+                )}
+              </div>
+              <p className="text-[10px] text-indigo-500 text-center font-bold px-4 leading-normal uppercase">
+                Requires a paid GCP project. <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline decoration-indigo-800 hover:text-indigo-300">Docs &rarr;</a>
+              </p>
+            </div>
+          )}
+        </div>
       </section>
 
       {/* SYNC SECTION */}
@@ -164,7 +190,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
               <p className="font-bold text-emerald-900">Actively Linked</p>
             </div>
           ) : (
-            <button onClick={onEnableSync} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold shadow-lg flex items-center justify-center gap-3">
+            <button onClick={onEnableSync} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold shadow-lg flex items-center justify-center gap-3 squishy">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
               Resume Connection
             </button>
@@ -191,7 +217,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
                 onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
                 className="flex-1 bg-white border border-rose-100 rounded-xl px-4 py-3 text-center font-bold outline-none"
               />
-              <button onClick={handleSetPin} className="px-6 py-3 bg-rose-500 text-white rounded-xl font-bold">Set</button>
+              <button onClick={handleSetPin} className="px-6 py-3 bg-rose-500 text-white rounded-xl font-bold squishy">Set</button>
             </div>
           )}
         </div>
