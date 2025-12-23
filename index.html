@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,7 +8,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@700&family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
-    <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         body {
@@ -67,13 +65,15 @@
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
 </head>
 <body>
-    <!-- Animated Aesthetic Background Blobs -->
     <div class="blob w-[500px] h-[500px] bg-rose-200 top-[-100px] left-[-100px]"></div>
     <div class="blob w-[400px] h-[400px] bg-indigo-100 bottom-[-50px] right-[-50px]" style="animation-delay: -5s;"></div>
     <div class="blob w-[300px] h-[300px] bg-amber-100 top-[20%] right-[10%]" style="animation-delay: -10s;"></div>
     
     <div id="root"></div>
+    <script type="module" src="./index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
 </body>
 </html>

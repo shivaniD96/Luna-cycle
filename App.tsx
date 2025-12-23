@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { format, differenceInDays } from 'date-fns';
 import { UserData, PartnerData } from './types';
@@ -124,6 +123,8 @@ const App: React.FC = () => {
     };
     const url = `${window.location.origin}${window.location.pathname}#/partner-view?data=${btoa(JSON.stringify(shareObj))}`;
     setShareLink(url);
+    // Scroll to share link info
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (partnerData) {
@@ -258,6 +259,7 @@ const App: React.FC = () => {
               phase={currentPhase} 
               daysRemaining={daysUntilNext} 
               symptoms={currentDaySymptoms} 
+              onShare={generateShareLink}
             />
           </div>
         )}
