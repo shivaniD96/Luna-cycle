@@ -6,6 +6,8 @@ export enum CyclePhase {
   LUTEAL = 'Luteal',
 }
 
+export type AIProvider = 'gemini' | 'grok';
+
 export interface SymptomLog {
   date: string;
   moods: string[];
@@ -15,7 +17,7 @@ export interface SymptomLog {
 }
 
 export interface PeriodLog {
-  date: string; // Changed from startDate to single date
+  date: string;
   intensity: 'light' | 'medium' | 'heavy';
 }
 
@@ -28,13 +30,15 @@ export interface UserData {
     privacyPin?: string;
     lockMethod?: 'pin' | 'google';
     googleUserEmail?: string;
+    aiProvider: AIProvider;
+    customApiKey?: string;
   };
 }
 
 export interface LogPayload {
   date: string;
-  period: PeriodLog | null; // null means "remove or don't add"
-  symptom: SymptomLog | null; // null means "remove or don't add"
+  period: PeriodLog | null;
+  symptom: SymptomLog | null;
 }
 
 export interface AIAdviceRequest {
@@ -42,11 +46,17 @@ export interface AIAdviceRequest {
   daysRemaining: number;
   symptoms: string[];
   role: 'user' | 'partner';
+  provider?: AIProvider;
+  customKey?: string;
 }
 
+// Added provider and customKey to PartnerData to fix type mismatch errors when 
+// sharing cycle data and AI configuration with the partner view.
 export interface PartnerData {
   phase: CyclePhase;
   daysUntilNext: number;
   symptoms: string[];
   avgCycle: number;
+  provider?: AIProvider;
+  customKey?: string;
 }

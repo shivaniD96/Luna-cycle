@@ -25,18 +25,15 @@ const App: React.FC = () => {
       settings: { 
         averageCycleLength: 28, 
         averagePeriodLength: 5,
-        lockMethod: undefined
+        lockMethod: undefined,
+        aiProvider: 'gemini'
       }
     };
 
     try {
       const parsed = JSON.parse(saved);
-      if (parsed.logs) {
-        parsed.logs = parsed.logs.map((log: any) => ({
-          ...log,
-          date: log.date || log.startDate
-        }));
-      }
+      // Ensure aiProvider exists in old data
+      if (!parsed.settings.aiProvider) parsed.settings.aiProvider = 'gemini';
       return parsed;
     } catch (e) {
       return {
@@ -45,7 +42,8 @@ const App: React.FC = () => {
         settings: { 
           averageCycleLength: 28, 
           averagePeriodLength: 5,
-          lockMethod: undefined
+          lockMethod: undefined,
+          aiProvider: 'gemini'
         }
       };
     }
@@ -53,9 +51,7 @@ const App: React.FC = () => {
 
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [logModalDate, setLogModalDate] = useState<string | undefined>();
-  const [shareLink, setShareLink] = useState<string | null>(null);
   const [isSyncActive, setIsSyncActive] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -82,8 +78,7 @@ const App: React.FC = () => {
     
     if (isSyncActive) {
       const debounceTimer = setTimeout(async () => {
-        const success = await SyncService.saveToFile(userData);
-        if (success) setLastSyncTime(new Date());
+        await SyncService.saveToFile(userData);
       }, 1000);
       return () => clearTimeout(debounceTimer);
     }
@@ -132,26 +127,19 @@ const App: React.FC = () => {
     }
   };
 
-  const handleImport = (newData: UserData) => {
-    setUserData(newData);
-    setActiveTab('overview');
-  };
-
-  const handleUpdateLock = (method: 'pin' | 'google' | undefined, value?: string) => {
+  const handleUpdateSettings = (newSettings: Partial<UserData['settings']>) => {
     setUserData(prev => ({
       ...prev,
-      settings: { 
-        ...prev.settings, 
-        lockMethod: method,
-        privacyPin: method === 'pin' ? value : undefined,
-        googleUserEmail: method === 'google' ? value : undefined
-      }
+      settings: { ...prev.settings, ...newSettings }
     }));
   };
 
-  const openLogForDate = (dateStr: string) => {
-    setLogModalDate(dateStr);
-    setIsLogModalOpen(true);
+  const handleUpdateLock = (method: 'pin' | 'google' | undefined, value?: string) => {
+    handleUpdateSettings({
+      lockMethod: method,
+      privacyPin: method === 'pin' ? value : undefined,
+      googleUserEmail: method === 'google' ? value : undefined
+    });
   };
 
   const generateShareLink = () => {
@@ -159,11 +147,13 @@ const App: React.FC = () => {
       phase: currentPhase,
       daysUntilNext,
       symptoms: currentDaySymptoms,
-      avgCycle
+      avgCycle,
+      provider: userData.settings.aiProvider,
+      customKey: userData.settings.customApiKey
     };
     const url = `${window.location.origin}${window.location.pathname}#/partner-view?data=${btoa(JSON.stringify(shareObj))}`;
-    setShareLink(url);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    navigator.clipboard.writeText(url);
+    alert('Partner link copied to clipboard!');
   };
 
   if (partnerData) {
@@ -194,7 +184,7 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="flex gap-2">
-             <button onClick={generateShareLink} className="p-4 bg-white/70 text-rose-400 rounded-2xl border border-white hover:shadow-md transition-all squishy">
+             <button onClick={generateShareLink} title="Share with Partner" className="p-4 bg-white/70 text-rose-400 rounded-2xl border border-white hover:shadow-md transition-all squishy">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/></svg>
               </button>
               <button onClick={() => setIsUnlocked(false)} className="p-4 bg-rose-50/50 text-rose-400 rounded-2xl border border-rose-100 hover:text-rose-600 transition-all squishy">
@@ -203,11 +193,13 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* STATUS HUB */}
         <div className="flex gap-2 flex-wrap">
           <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[9px] font-bold uppercase tracking-wider ${isSyncActive ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-amber-50 border-amber-100 text-amber-600 cursor-pointer'}`} onClick={!isSyncActive ? () => setActiveTab('settings') : undefined}>
             <div className={`w-1.5 h-1.5 rounded-full ${isSyncActive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></div>
             {isSyncActive ? 'Synced' : 'Sync Disconnected'}
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border bg-indigo-50 border-indigo-100 text-indigo-600 text-[9px] font-bold uppercase tracking-wider">
+            {userData.settings.aiProvider === 'gemini' ? 'Gemini AI' : 'Grok AI'}
           </div>
         </div>
       </header>
@@ -230,7 +222,6 @@ const App: React.FC = () => {
           <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
             <section className="bg-white rounded-[3.5rem] p-10 md:p-14 shadow-xl shadow-rose-100/40 border border-white text-center relative overflow-hidden glass-card">
               <div className={`absolute top-0 left-0 w-full h-3 ${PHASE_COLORS[currentPhase] || 'bg-rose-100'}`}></div>
-              
               <div className="relative inline-block mb-10">
                 <div className={`w-56 h-56 md:w-72 md:h-72 rounded-full border-[12px] border-white shadow-xl ${PHASE_COLORS[currentPhase] || 'bg-rose-100'} opacity-20 flex items-center justify-center animate-pulse`}></div>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -242,64 +233,37 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
-
               <div className="bg-rose-50/50 rounded-[2.5rem] p-6 mb-4">
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                  {daysUntilNext === 0 ? "Expected Today" : `${daysUntilNext} Days Remaining`}
-                </h2>
-                <p className="text-gray-500 max-w-md mx-auto leading-relaxed text-sm font-medium">
-                  {PHASE_DESCRIPTIONS[currentPhase]}
-                </p>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">{daysUntilNext === 0 ? "Expected Today" : `${daysUntilNext} Days Remaining`}</h2>
+                <p className="text-gray-500 max-w-md mx-auto leading-relaxed text-sm font-medium">{PHASE_DESCRIPTIONS[currentPhase]}</p>
               </div>
             </section>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <button 
-                onClick={() => { setLogModalDate(format(new Date(), 'yyyy-MM-dd')); setIsLogModalOpen(true); }}
-                className="bg-rose-400 text-white p-10 rounded-[3rem] shadow-xl shadow-rose-200 flex flex-col items-center justify-center gap-3 hover:bg-rose-500 transition-all squishy"
-              >
-                <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-3xl">📝</div>
-                <span className="font-bold text-xl tracking-tight">Log Flow</span>
-              </button>
-              
-              <div className="bg-indigo-50 text-indigo-700 p-10 rounded-[3rem] flex flex-col items-center justify-center gap-2 border border-indigo-100 glass-card">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-300">Average Cycle</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-5xl font-serif">{avgCycle}</span>
-                  <span className="text-sm font-bold">days</span>
-                </div>
-              </div>
-            </div>
 
             <AdvicePanel 
               phase={currentPhase} 
               daysRemaining={daysUntilNext} 
               symptoms={currentDaySymptoms} 
-              onShare={generateShareLink}
+              provider={userData.settings.aiProvider}
+              customKey={userData.settings.customApiKey}
               onOpenSettings={() => setActiveTab('settings')}
             />
           </div>
         )}
 
-        {activeTab === 'history' && <HistoryView userData={userData} onDayClick={openLogForDate} />}
+        {activeTab === 'history' && <HistoryView userData={userData} onDayClick={(date) => { setLogModalDate(date); setIsLogModalOpen(true); }} />}
         {activeTab === 'settings' && (
           <SettingsView 
             userData={userData} 
-            onImport={handleImport} 
+            onImport={(data) => { setUserData(data); setActiveTab('overview'); }} 
             isSyncActive={isSyncActive}
             onEnableSync={handleEnableSync}
             onUpdateLock={handleUpdateLock}
+            onUpdateSettings={handleUpdateSettings}
           />
         )}
       </main>
 
-      <LogModal 
-        isOpen={isLogModalOpen} 
-        onClose={() => setIsLogModalOpen(false)} 
-        onSave={handleSaveLog}
-        userData={userData}
-        initialDate={logModalDate}
-      />
+      <LogModal isOpen={isLogModalOpen} onClose={() => setIsLogModalOpen(false)} onSave={handleSaveLog} userData={userData} initialDate={logModalDate} />
     </div>
   );
 };

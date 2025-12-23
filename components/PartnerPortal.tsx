@@ -29,22 +29,46 @@ const PartnerPortal: React.FC<PartnerPortalProps> = ({ data }) => {
     setInput('');
     setIsTyping(true);
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `You are Luna, an empathetic AI cycle guide. 
+    const provider = data.provider || 'gemini';
+    const key = data.customKey || "";
+    
+    const roleInstruction = `You are Luna, an empathetic AI cycle guide. 
     A partner is asking you for help.
     CONTEXT:
     - User's Phase: ${data.phase}
     - Symptoms: ${data.symptoms.join(', ') || 'None'}
     - Days until period: ${data.daysUntilNext}
-    - Partner's Message: "${userMessage}"
-    Provide kind, practical, and non-medical advice on support. Keep it concise.`;
+    - Partner's Message: "${userMessage}"`;
+
+    const prompt = `${roleInstruction} Provide kind, practical, and non-medical advice on support. Keep it concise.`;
 
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-      });
-      setMessages(prev => [...prev, { role: 'ai', text: response.text || "I'm having a little trouble thinking. Try again!" }]);
+      let aiResponse = "";
+      if (provider === 'gemini') {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const response = await ai.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: prompt,
+        });
+        aiResponse = response.text || "I'm having a little trouble thinking.";
+      } else {
+        const response = await fetch("https://api.x.ai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${key}`
+          },
+          body: JSON.stringify({
+            model: "grok-beta",
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.7
+          })
+        });
+        const json = await response.json();
+        aiResponse = json.choices[0].message.content;
+      }
+      
+      setMessages(prev => [...prev, { role: 'ai', text: aiResponse }]);
     } catch (err) {
       setMessages(prev => [...prev, { role: 'ai', text: "I'm offline right now, but generally, patience and extra snacks are always a win!" }]);
     } finally {
@@ -56,7 +80,7 @@ const PartnerPortal: React.FC<PartnerPortalProps> = ({ data }) => {
     <div className="min-h-screen bg-indigo-50 flex flex-col items-center p-6 pb-12">
       <header className="w-full max-w-2xl mb-8 flex flex-col items-center">
         <h1 className="text-3xl font-serif text-indigo-900 mb-2">Support Portal</h1>
-        <p className="text-indigo-400 font-medium text-xs uppercase tracking-widest">LunaCycle Companion</p>
+        <p className="text-indigo-400 font-medium text-xs uppercase tracking-widest">LunaCycle Companion (via {data.provider === 'gemini' ? 'Gemini' : 'Grok'})</p>
       </header>
 
       <div className="w-full max-w-2xl space-y-6">
@@ -88,7 +112,9 @@ const PartnerPortal: React.FC<PartnerPortalProps> = ({ data }) => {
           </div>
           <form onSubmit={handleSend} className="p-4 bg-indigo-950/50 flex gap-2">
             <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask Luna..." className="flex-1 bg-indigo-900/50 border border-indigo-800 rounded-xl px-4 py-3 text-white text-sm outline-none" />
-            <button type="submit" disabled={isTyping} className="p-3 bg-indigo-500 text-white rounded-xl"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></button>
+            <button type="submit" disabled={isTyping} className="p-3 bg-indigo-500 text-white rounded-xl">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+            </button>
           </form>
         </div>
       </div>
