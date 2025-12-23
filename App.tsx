@@ -31,6 +31,7 @@ const App: React.FC = () => {
   });
 
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [logModalDate, setLogModalDate] = useState<string | undefined>();
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [isSyncActive, setIsSyncActive] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
@@ -84,15 +85,20 @@ const App: React.FC = () => {
       let newLogs = [...prev.logs];
       let newSymptoms = [...prev.symptoms];
 
+      // Handle Period Log
+      const filteredLogs = newLogs.filter(l => l.date !== payload.date);
       if (payload.period) {
-        // Simple logic: add new log, or update if date matches exactly (simplified for now)
-        newLogs = [...newLogs, payload.period].sort((a,b) => a.startDate.localeCompare(b.startDate));
+        newLogs = [...filteredLogs, payload.period].sort((a,b) => a.date.localeCompare(b.date));
+      } else {
+        newLogs = filteredLogs;
       }
 
+      // Handle Symptom Log
+      const filteredSymptoms = newSymptoms.filter(s => s.date !== payload.date);
       if (payload.symptom) {
-        // Replace existing log for that date if it exists
-        const filtered = newSymptoms.filter(s => s.date !== payload.symptom!.date);
-        newSymptoms = [...filtered, payload.symptom];
+        newSymptoms = [...filteredSymptoms, payload.symptom].sort((a,b) => a.date.localeCompare(b.date));
+      } else {
+        newSymptoms = filteredSymptoms;
       }
 
       return { ...prev, logs: newLogs, symptoms: newSymptoms };
@@ -122,6 +128,11 @@ const App: React.FC = () => {
         googleUserEmail: method === 'google' ? value : undefined
       }
     }));
+  };
+
+  const openLogForDate = (dateStr: string) => {
+    setLogModalDate(dateStr);
+    setIsLogModalOpen(true);
   };
 
   const generateShareLink = () => {
@@ -247,7 +258,7 @@ const App: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <button 
-                onClick={() => setIsLogModalOpen(true)}
+                onClick={() => { setLogModalDate(format(new Date(), 'yyyy-MM-dd')); setIsLogModalOpen(true); }}
                 className="bg-rose-400 text-white p-10 rounded-[3rem] shadow-xl shadow-rose-200 flex flex-col items-center justify-center gap-3 hover:bg-rose-500 transition-all squishy"
               >
                 <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-3xl">📝</div>
@@ -273,7 +284,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'history' && <HistoryView userData={userData} />}
+        {activeTab === 'history' && <HistoryView userData={userData} onDayClick={openLogForDate} />}
         {activeTab === 'settings' && (
           <SettingsView 
             userData={userData} 
@@ -301,6 +312,8 @@ const App: React.FC = () => {
         isOpen={isLogModalOpen} 
         onClose={() => setIsLogModalOpen(false)} 
         onSave={handleSaveLog}
+        userData={userData}
+        initialDate={logModalDate}
       />
     </div>
   );

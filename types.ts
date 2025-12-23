@@ -8,15 +8,14 @@ export enum CyclePhase {
 
 export interface SymptomLog {
   date: string;
-  moods: string[]; // Changed from mood: string
+  moods: string[];
   energy: number; // 1-5
   physicalSymptoms: string[];
   notes: string;
 }
 
 export interface PeriodLog {
-  startDate: string;
-  endDate?: string;
+  date: string; // Changed from startDate to single date
   intensity: 'light' | 'medium' | 'heavy';
 }
 
@@ -33,8 +32,9 @@ export interface UserData {
 }
 
 export interface LogPayload {
-  period: PeriodLog | null;
-  symptom: SymptomLog | null;
+  date: string;
+  period: PeriodLog | null; // null means "remove or don't add"
+  symptom: SymptomLog | null; // null means "remove or don't add"
 }
 
 export interface AIAdviceRequest {
