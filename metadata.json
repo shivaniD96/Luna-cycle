@@ -1,0 +1,5 @@
+{
+  "name": "LunaCycle - Private Cycle Companion",
+  "description": "A privacy-first period tracker that stores all your data locally. Includes a partner-sharing feature and an AI-powered cycle guide to help others understand and support you through your hormonal changes.",
+  "requestFramePermissions": []
+}
