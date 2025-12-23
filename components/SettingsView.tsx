@@ -100,15 +100,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userData, onImport, isSyncA
       </section>
 
       <section className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-emerald-100 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-8 opacity-5">
-           <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 0 0-9-9"/><path d="M3 12a9 9 0 0 0 9 9"/></svg>
-        </div>
         <h3 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
           Live Private Sync
         </h3>
         <p className="text-sm text-gray-500 mb-6 leading-relaxed">
-          Create a link to your own cloud folder. Pick a file inside your <strong>iCloud, Dropbox, or Google Drive</strong> folder. Luna will automatically sync changes to that file so your data stays private and synced across your devices.
+          Link a file inside your <strong>iCloud, Dropbox, or Google Drive</strong>. Luna will automatically sync changes to that file.
         </p>
         
         <div className={`p-6 rounded-[2rem] border transition-all ${isSyncActive ? 'bg-emerald-50 border-emerald-100' : 'bg-gray-50 border-gray-100'}`}>
@@ -119,28 +116,32 @@ const SettingsView: React.FC<SettingsViewProps> = ({ userData, onImport, isSyncA
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                 </div>
                 <div>
-                  <p className="font-bold text-emerald-900">Successfully Connected</p>
-                  <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Auto-syncing to your chosen file</p>
+                  <p className="font-bold text-emerald-900">Actively Syncing</p>
+                  <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Changes are saved instantly</p>
                 </div>
+              </div>
+              <div className="bg-white/50 p-4 rounded-xl border border-emerald-100">
+                <p className="text-[10px] text-emerald-800 font-bold uppercase mb-1">Security Note</p>
+                <p className="text-[11px] text-emerald-600 leading-tight">For your safety, the browser clears this connection when you close the tab. You'll need to re-select the file next time you visit.</p>
               </div>
               <button onClick={onEnableSync} className="text-xs font-bold text-emerald-500 hover:text-emerald-700 underline text-left">Switch Sync File</button>
             </div>
           ) : (
-            <button 
-              onClick={onEnableSync} 
-              className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all squishy flex items-center justify-center gap-3"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-              Establish Live Sync Connection
-            </button>
+            <div className="space-y-4">
+               <button 
+                onClick={onEnableSync} 
+                className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all squishy flex items-center justify-center gap-3"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                Establish Live Connection
+              </button>
+              <p className="text-[10px] text-gray-400 text-center font-bold uppercase tracking-wider">Select a file in your cloud folder to enable cross-device sync</p>
+            </div>
           )}
         </div>
       </section>
 
       <section className="bg-indigo-900 rounded-[2.5rem] p-8 shadow-xl text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12">
-          <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"/><path d="M12 7v5l3 3"/></svg>
-        </div>
         <h3 className="text-xl font-bold mb-2">AI Health Formatter</h3>
         <p className="text-indigo-200 text-sm mb-6">Convert your cycle history into a beautiful report for Notion or your doctor.</p>
         {!formattedData ? (

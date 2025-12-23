@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { getCycleAdvice } from '../services/geminiService';
 import { CyclePhase } from '../types';
@@ -12,13 +13,24 @@ interface AdvicePanelProps {
 const AdvicePanel: React.FC<AdvicePanelProps> = ({ phase, daysRemaining, symptoms, onShare }) => {
   const [tips, setTips] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   const [role, setRole] = useState<'user' | 'partner'>('user');
 
   const fetchAdvice = async () => {
     setLoading(true);
-    const result = await getCycleAdvice({ phase, daysRemaining, symptoms, role });
-    setTips(result);
-    setLoading(false);
+    setError(false);
+    try {
+      const result = await getCycleAdvice({ phase, daysRemaining, symptoms, role });
+      if (result.length > 0 && !result[0].includes("trouble connecting")) {
+        setTips(result);
+      } else {
+        setError(true);
+      }
+    } catch (e) {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -59,6 +71,16 @@ const AdvicePanel: React.FC<AdvicePanelProps> = ({ phase, daysRemaining, symptom
             <div className="h-4 bg-rose-50 rounded-full w-3/4"></div>
             <div className="h-4 bg-rose-50 rounded-full w-full"></div>
             <div className="h-4 bg-rose-50 rounded-full w-2/3"></div>
+          </div>
+        ) : error ? (
+          <div className="bg-rose-50 p-6 rounded-2xl border border-rose-100 text-center">
+            <p className="text-rose-600 font-bold text-sm mb-2">Connection Pending</p>
+            <p className="text-gray-500 text-xs leading-relaxed mb-4">
+              AI recommendations are warming up. This can happen if the API key is still being verified.
+            </p>
+            <button onClick={fetchAdvice} className="px-6 py-2 bg-rose-400 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-rose-500 transition-colors">
+              Try Reconnecting
+            </button>
           </div>
         ) : (
           <div className="space-y-4">

@@ -18,7 +18,7 @@ import {
   getYear
 } from 'date-fns';
 import { UserData, CyclePhase } from '../types';
-import { MOODS, PHASE_COLORS } from '../constants';
+import { MOODS, PHASE_COLORS, PHASE_ICONS } from '../constants';
 import { getPhaseForDate, getPeriodStartDates } from '../utils/cycleCalculator';
 
 interface HistoryViewProps {
@@ -64,14 +64,14 @@ const HistoryView: React.FC<HistoryViewProps> = ({ userData, onDayClick }) => {
       {/* Cycle Stats Summary */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-rose-50/50 p-6 rounded-[2.5rem] border border-rose-100 glass-card">
-          <p className="text-[10px] text-rose-300 font-bold uppercase tracking-widest mb-1">Last 3 Months</p>
+          <p className="text-[10px] text-rose-300 font-bold uppercase tracking-widest mb-1">Status</p>
           <div className="flex items-baseline gap-1">
-            <p className="text-3xl font-serif text-rose-900">{userData.logs.length > 0 ? 'Consistent' : 'Starting'}</p>
+            <p className="text-3xl font-serif text-rose-900">{userData.logs.length > 3 ? 'Regular' : 'Tracking'}</p>
           </div>
         </div>
         <div className="bg-indigo-50/50 p-6 rounded-[2.5rem] border border-indigo-100 glass-card">
-          <p className="text-[10px] text-indigo-300 font-bold uppercase tracking-widest mb-1">Symptoms Tracked</p>
-          <p className="text-3xl font-serif text-indigo-900">{userData.symptoms.length}</p>
+          <p className="text-[10px] text-indigo-300 font-bold uppercase tracking-widest mb-1">Logs Created</p>
+          <p className="text-3xl font-serif text-indigo-900">{userData.logs.length + userData.symptoms.length}</p>
         </div>
       </div>
 
@@ -101,7 +101,6 @@ const FullRoadmapModal: React.FC<RoadmapModalProps> = ({ userData, onClose, onDa
   const [baseDate, setBaseDate] = useState(new Date());
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Range: 1 year back, 2 years forward
   const monthRange = useMemo(() => {
     const range = [];
     const start = addMonths(baseDate, -12);
@@ -121,28 +120,32 @@ const FullRoadmapModal: React.FC<RoadmapModalProps> = ({ userData, onClose, onDa
   const handleJump = (year: number, monthIdx: number) => {
     const newDate = setYear(setMonth(new Date(), monthIdx), year);
     setBaseDate(newDate);
-    // In a real infinite scroller we'd scroll to element, here we update range base
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   };
 
   return (
     <div className="fixed inset-0 z-[100] bg-[#fff9f8] animate-in fade-in zoom-in-95 duration-300 flex flex-col">
-      {/* Premium Header */}
       <header className="p-6 md:p-10 bg-[#fff9f8]/95 backdrop-blur-xl border-b border-rose-50 shadow-sm relative z-20">
         <div className="flex items-center justify-between mb-8 max-w-5xl mx-auto">
           <div>
             <h2 className="text-4xl font-serif text-rose-900">Your Roadmap</h2>
-            <p className="text-[10px] text-rose-300 font-bold uppercase tracking-[0.2em] mt-1">Hormonal Predictions & History</p>
+            <p className="text-[10px] text-rose-300 font-bold uppercase tracking-[0.2em] mt-1">Scroll to see future cycles</p>
           </div>
-          <button 
-            onClick={onClose} 
-            className="w-14 h-14 bg-white text-rose-400 rounded-[1.5rem] flex items-center justify-center hover:bg-rose-50 transition-all squishy border border-rose-100 shadow-md"
-          >
+          <button onClick={onClose} className="w-14 h-14 bg-white text-rose-400 rounded-[1.5rem] flex items-center justify-center hover:bg-rose-50 transition-all border border-rose-100 shadow-md">
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
         </div>
 
-        {/* Navigation Bar */}
+        {/* Legend */}
+        <div className="max-w-5xl mx-auto mb-8 flex flex-wrap gap-4 justify-center md:justify-start">
+          {Object.entries(PHASE_COLORS).map(([phase, color]) => (
+            <div key={phase} className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-rose-50 shadow-sm">
+              <div className={`w-2.5 h-2.5 rounded-full ${color}`}></div>
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{phase}</span>
+            </div>
+          ))}
+        </div>
+
         <div className="flex flex-col md:flex-row items-center gap-4 max-w-5xl mx-auto">
           <div className="flex items-center gap-2 bg-white/50 p-1.5 rounded-2xl border border-rose-50">
             <select 
@@ -166,20 +169,13 @@ const FullRoadmapModal: React.FC<RoadmapModalProps> = ({ userData, onClose, onDa
             ))}
           </div>
 
-          <button 
-            onClick={() => { setBaseDate(new Date()); if (scrollRef.current) scrollRef.current.scrollTop = 0; }}
-            className="px-6 py-2.5 bg-rose-900 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-rose-800 transition-colors shadow-lg"
-          >
+          <button onClick={() => { setBaseDate(new Date()); if (scrollRef.current) scrollRef.current.scrollTop = 0; }} className="px-6 py-2.5 bg-rose-900 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-rose-800 transition-colors shadow-lg">
             Today
           </button>
         </div>
       </header>
 
-      {/* Infinite Vertical Scroll List */}
-      <div 
-        ref={scrollRef} 
-        className="flex-1 overflow-y-auto px-6 md:px-20 py-12 space-y-24 scroll-smooth bg-gradient-to-b from-[#fff9f8] to-white"
-      >
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 md:px-20 py-12 space-y-24 scroll-smooth bg-gradient-to-b from-[#fff9f8] to-white">
         <div className="max-w-xl mx-auto space-y-32">
           {monthRange.map((month) => (
             <div key={month.toISOString()} className="relative">
@@ -194,10 +190,8 @@ const FullRoadmapModal: React.FC<RoadmapModalProps> = ({ userData, onClose, onDa
             </div>
           ))}
         </div>
-        
-        {/* Loader/Footer */}
         <div className="text-center py-20 opacity-20">
-          <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-rose-300">End of predictions</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-rose-300">End of records</p>
         </div>
       </div>
     </div>
@@ -225,7 +219,6 @@ const MonthGrid: React.FC<MonthGridProps> = ({ month, userData, onDayClick, avgC
   const isPredictedPeriod = (date: Date) => {
     if (periodStarts.length === 0) return false;
     const lastStart = periodStarts[periodStarts.length - 1];
-    // Check next 12 cycles
     for (let i = 1; i <= 12; i++) {
       const predictedStart = addDays(lastStart, avgCycle * i);
       const predictedEnd = addDays(predictedStart, avgPeriod - 1);
@@ -279,19 +272,13 @@ const MonthGrid: React.FC<MonthGridProps> = ({ month, userData, onDayClick, avgC
                 hover:scale-105 active:scale-95
               `}
             >
-              {/* Phase Strip */}
               <div className={`absolute left-0 top-0 bottom-0 w-1 ${PHASE_COLORS[phase]} opacity-50`}></div>
-              
               <span className={`text-sm md:text-base font-bold z-10 ${periodEntry ? 'text-white' : 'text-gray-700'}`}>
                 {format(day, 'd')}
               </span>
-              
-              {/* Mood/Symptom Indicator */}
               {symptomEntry && !periodEntry && (
                 <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse"></div>
               )}
-
-              {/* Heart for Period Days */}
               {(periodEntry || predicted) && !isCompact && (
                  <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none scale-150">
                    <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
