@@ -1,40 +1,27 @@
 
 import React, { useState, useEffect } from 'react';
 import { getCycleAdvice } from '../services/aiService';
-import { CyclePhase, AIProvider } from '../types';
+import { CyclePhase } from '../types';
 
 interface AdvicePanelProps {
   phase: CyclePhase;
   daysRemaining: number;
   symptoms: string[];
-  provider: AIProvider;
-  customKey?: string;
   onOpenSettings?: () => void;
 }
 
-const AdvicePanel: React.FC<AdvicePanelProps> = ({ phase, daysRemaining, symptoms, provider, customKey, onOpenSettings }) => {
+const AdvicePanel: React.FC<AdvicePanelProps> = ({ phase, daysRemaining, symptoms, onOpenSettings }) => {
   const [tips, setTips] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [errorType, setErrorType] = useState<'rate' | 'key' | 'other' | null>(null);
   const [role, setRole] = useState<'user' | 'partner'>('user');
 
   const fetchAdvice = async () => {
     setLoading(true);
-    setErrorType(null);
     try {
-      const result = await getCycleAdvice({ phase, daysRemaining, symptoms, role, provider, customKey });
-      
-      if (result.includes("RATE_LIMIT_ERROR")) {
-        setErrorType('rate');
-      } else if (result.includes("MISSING_KEY_ERROR")) {
-        setErrorType('key');
-      } else if (result.length > 0) {
-        setTips(result);
-      } else {
-        setErrorType('other');
-      }
+      const result = await getCycleAdvice({ phase, daysRemaining, symptoms, role });
+      setTips(result);
     } catch (e) {
-      setErrorType('other');
+      console.error("Advice error:", e);
     } finally {
       setLoading(false);
     }
@@ -42,18 +29,13 @@ const AdvicePanel: React.FC<AdvicePanelProps> = ({ phase, daysRemaining, symptom
 
   useEffect(() => {
     fetchAdvice();
-  }, [role, phase, provider]);
+  }, [role, phase]);
 
   return (
     <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-xl shadow-rose-100/30 border border-rose-50 glass-card overflow-hidden relative">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 relative z-10">
         <div>
-          <h3 className="text-2xl font-serif text-gray-800 flex items-center gap-2">
-            Daily Wisdom
-            <span className="text-[9px] font-bold text-indigo-400 bg-indigo-50 px-2 py-0.5 rounded-full uppercase">
-              via {provider === 'gemini' ? 'Gemini' : 'Grok'}
-            </span>
-          </h3>
+          <h3 className="text-2xl font-serif text-gray-800">Daily Wisdom</h3>
           <p className="text-rose-300 text-[10px] font-bold uppercase tracking-[0.2em] mt-1">AI-Powered Insights</p>
         </div>
         
@@ -69,20 +51,6 @@ const AdvicePanel: React.FC<AdvicePanelProps> = ({ phase, daysRemaining, symptom
             <div className="h-4 bg-rose-50 rounded-full w-3/4"></div>
             <div className="h-4 bg-rose-50 rounded-full w-full"></div>
             <div className="h-4 bg-rose-50 rounded-full w-2/3"></div>
-          </div>
-        ) : errorType === 'rate' ? (
-          <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 text-center">
-            <p className="text-amber-800 font-bold text-sm mb-1">Quota Full</p>
-            <p className="text-amber-600 text-xs leading-relaxed mb-4">
-              Rate limits hit! Switch to Grok or use a personal key in settings to bypass this.
-            </p>
-            <button onClick={onOpenSettings} className="px-5 py-2 bg-amber-400 text-white rounded-xl text-[10px] font-bold uppercase">Switch Brains</button>
-          </div>
-        ) : errorType === 'key' ? (
-          <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100 text-center">
-            <p className="text-indigo-800 font-bold text-sm mb-1">Key Required</p>
-            <p className="text-indigo-600 text-xs leading-relaxed mb-4">Please enter your Grok API key in Settings to use this brain.</p>
-            <button onClick={onOpenSettings} className="px-5 py-2 bg-indigo-400 text-white rounded-xl text-[10px] font-bold uppercase">Settings</button>
           </div>
         ) : (
           <div className="space-y-4">

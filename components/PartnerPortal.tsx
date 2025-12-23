@@ -28,9 +28,6 @@ const PartnerPortal: React.FC<PartnerPortalProps> = ({ data }) => {
     setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
     setInput('');
     setIsTyping(true);
-
-    const provider = data.provider || 'gemini';
-    const key = data.customKey || "";
     
     const roleInstruction = `You are Luna, an empathetic AI cycle guide. 
     A partner is asking you for help.
@@ -43,34 +40,15 @@ const PartnerPortal: React.FC<PartnerPortalProps> = ({ data }) => {
     const prompt = `${roleInstruction} Provide kind, practical, and non-medical advice on support. Keep it concise.`;
 
     try {
-      let aiResponse = "";
-      if (provider === 'gemini') {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: prompt,
-        });
-        aiResponse = response.text || "I'm having a little trouble thinking.";
-      } else {
-        const response = await fetch("https://api.x.ai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${key}`
-          },
-          body: JSON.stringify({
-            model: "grok-beta",
-            messages: [{ role: "user", content: prompt }],
-            temperature: 0.7
-          })
-        });
-        const json = await response.json();
-        aiResponse = json.choices[0].message.content;
-      }
-      
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+      });
+      const aiResponse = response.text || "I'm having a little trouble thinking, but generally, patience and extra comfort are always appreciated right now.";
       setMessages(prev => [...prev, { role: 'ai', text: aiResponse }]);
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'ai', text: "I'm offline right now, but generally, patience and extra snacks are always a win!" }]);
+      setMessages(prev => [...prev, { role: 'ai', text: "I'm offline right now, but a good rule of thumb: offer snacks, a listening ear, and extra comfort. They're doing great!" }]);
     } finally {
       setIsTyping(false);
     }
@@ -80,7 +58,7 @@ const PartnerPortal: React.FC<PartnerPortalProps> = ({ data }) => {
     <div className="min-h-screen bg-indigo-50 flex flex-col items-center p-6 pb-12">
       <header className="w-full max-w-2xl mb-8 flex flex-col items-center">
         <h1 className="text-3xl font-serif text-indigo-900 mb-2">Support Portal</h1>
-        <p className="text-indigo-400 font-medium text-xs uppercase tracking-widest">LunaCycle Companion (via {data.provider === 'gemini' ? 'Gemini' : 'Grok'})</p>
+        <p className="text-indigo-400 font-medium text-[10px] uppercase tracking-widest">LunaCycle Companion</p>
       </header>
 
       <div className="w-full max-w-2xl space-y-6">

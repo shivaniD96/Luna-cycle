@@ -32,8 +32,6 @@ const App: React.FC = () => {
 
     try {
       const parsed = JSON.parse(saved);
-      // Ensure aiProvider exists in old data
-      if (!parsed.settings.aiProvider) parsed.settings.aiProvider = 'gemini';
       return parsed;
     } catch (e) {
       return {
@@ -147,9 +145,7 @@ const App: React.FC = () => {
       phase: currentPhase,
       daysUntilNext,
       symptoms: currentDaySymptoms,
-      avgCycle,
-      provider: userData.settings.aiProvider,
-      customKey: userData.settings.customApiKey
+      avgCycle
     };
     const url = `${window.location.origin}${window.location.pathname}#/partner-view?data=${btoa(JSON.stringify(shareObj))}`;
     navigator.clipboard.writeText(url);
@@ -198,9 +194,6 @@ const App: React.FC = () => {
             <div className={`w-1.5 h-1.5 rounded-full ${isSyncActive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></div>
             {isSyncActive ? 'Synced' : 'Sync Disconnected'}
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border bg-indigo-50 border-indigo-100 text-indigo-600 text-[9px] font-bold uppercase tracking-wider">
-            {userData.settings.aiProvider === 'gemini' ? 'Gemini AI' : 'Grok AI'}
-          </div>
         </div>
       </header>
 
@@ -243,8 +236,6 @@ const App: React.FC = () => {
               phase={currentPhase} 
               daysRemaining={daysUntilNext} 
               symptoms={currentDaySymptoms} 
-              provider={userData.settings.aiProvider}
-              customKey={userData.settings.customApiKey}
               onOpenSettings={() => setActiveTab('settings')}
             />
           </div>
