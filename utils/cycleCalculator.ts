@@ -1,25 +1,33 @@
-
-import { addDays, differenceInDays, format, parseISO, startOfDay, isSameDay, isWithinInterval, subDays } from 'date-fns';
+import { addDays, differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import { PeriodLog, CyclePhase } from '../types';
 
 export const calculateNextPeriod = (logs: PeriodLog[], avgCycle: number = 28) => {
-  if (logs.length === 0) return null;
-  const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date));
-  const lastStart = parseISO(sorted[sorted.length - 1].date);
+  if (!logs || logs.length === 0) return null;
+  const sorted = [...logs]
+    .filter(l => l.date || (l as any).startDate)
+    .sort((a, b) => (a.date || (a as any).startDate).localeCompare(b.date || (b as any).startDate));
+  
+  if (sorted.length === 0) return null;
+  const lastDateStr = sorted[sorted.length - 1].date || (sorted[sorted.length - 1] as any).startDate;
+  const lastStart = parseISO(lastDateStr);
   return addDays(lastStart, avgCycle);
 };
 
 export const getCurrentCycleDay = (logs: PeriodLog[]) => {
-  if (logs.length === 0) return 0;
-  // To find the current cycle day, we need the start date of the *current* period
-  // We look for the most recent log that is more than a few days away from the previous one
-  const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date));
-  let currentPeriodStart = parseISO(sorted[sorted.length - 1].date);
+  if (!logs || logs.length === 0) return 0;
   
-  // Trace back to the first day of this specific streak
+  const sorted = [...logs]
+    .filter(l => l.date || (l as any).startDate)
+    .sort((a, b) => (a.date || (a as any).startDate).localeCompare(b.date || (b as any).startDate));
+  
+  if (sorted.length === 0) return 0;
+
+  let lastLog = sorted[sorted.length - 1];
+  let currentPeriodStart = parseISO(lastLog.date || (lastLog as any).startDate);
+  
   for (let i = sorted.length - 1; i > 0; i--) {
-    const d1 = parseISO(sorted[i].date);
-    const d2 = parseISO(sorted[i-1].date);
+    const d1 = parseISO(sorted[i].date || (sorted[i] as any).startDate);
+    const d2 = parseISO(sorted[i-1].date || (sorted[i-1] as any).startDate);
     if (differenceInDays(d1, d2) > 2) {
       currentPeriodStart = d1;
       break;
@@ -32,6 +40,7 @@ export const getCurrentCycleDay = (logs: PeriodLog[]) => {
 };
 
 export const determinePhase = (day: number, avgCycle: number = 28, avgPeriod: number = 5): CyclePhase => {
+  if (day <= 0) return CyclePhase.FOLLICULAR; // Default if no data
   if (day <= avgPeriod) return CyclePhase.MENSTRUAL;
   if (day <= avgCycle - 14 - 3) return CyclePhase.FOLLICULAR;
   if (day <= avgCycle - 14 + 3) return CyclePhase.OVULATION;
@@ -50,13 +59,19 @@ export const getCycleSummary = (logs: PeriodLog[], defaultAvg: number = 28) => {
 };
 
 export const getPeriodStartDates = (logs: PeriodLog[]): Date[] => {
-  if (logs.length === 0) return [];
-  const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date));
-  const starts: Date[] = [parseISO(sorted[0].date)];
+  if (!logs || logs.length === 0) return [];
+  const sorted = [...logs]
+    .filter(l => l.date || (l as any).startDate)
+    .sort((a, b) => (a.date || (a as any).startDate).localeCompare(b.date || (b as any).startDate));
+    
+  if (sorted.length === 0) return [];
+
+  const firstDateStr = sorted[0].date || (sorted[0] as any).startDate;
+  const starts: Date[] = [parseISO(firstDateStr)];
   
   for (let i = 1; i < sorted.length; i++) {
-    const d1 = parseISO(sorted[i].date);
-    const d2 = parseISO(sorted[i-1].date);
+    const d1 = parseISO(sorted[i].date || (sorted[i] as any).startDate);
+    const d2 = parseISO(sorted[i-1].date || (sorted[i-1] as any).startDate);
     if (differenceInDays(d1, d2) > 2) {
       starts.push(d1);
     }

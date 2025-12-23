@@ -1,16 +1,15 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { format, differenceInDays } from 'date-fns';
 import { UserData, PartnerData, LogPayload } from './types';
-import { calculateNextPeriod, getCurrentCycleDay, determinePhase, getCycleSummary } from './utils/cycleCalculator';
-import { PHASE_COLORS, PHASE_ICONS, PHASE_DESCRIPTIONS } from './constants';
-import LogModal from './components/LogModal';
-import AdvicePanel from './components/AdvicePanel';
-import HistoryView from './components/HistoryView';
-import SettingsView from './components/SettingsView';
-import AuthScreen from './components/AuthScreen';
-import PartnerPortal from './components/PartnerPortal';
-import { SyncService } from './services/syncService';
+import { calculateNextPeriod, getCurrentCycleDay, determinePhase, getCycleSummary } from './utils/cycleCalculator.ts';
+import { PHASE_COLORS, PHASE_ICONS, PHASE_DESCRIPTIONS } from './constants.tsx';
+import LogModal from './components/LogModal.tsx';
+import AdvicePanel from './components/AdvicePanel.tsx';
+import HistoryView from './components/HistoryView.tsx';
+import SettingsView from './components/SettingsView.tsx';
+import AuthScreen from './components/AuthScreen.tsx';
+import PartnerPortal from './components/PartnerPortal.tsx';
+import { SyncService } from './services/syncService.ts';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'settings'>('overview');
@@ -19,7 +18,7 @@ const App: React.FC = () => {
   
   const [userData, setUserData] = useState<UserData>(() => {
     const saved = localStorage.getItem('luna_cycle_data');
-    return saved ? JSON.parse(saved) : {
+    if (!saved) return {
       logs: [],
       symptoms: [],
       settings: { 
@@ -28,6 +27,29 @@ const App: React.FC = () => {
         lockMethod: undefined
       }
     };
+
+    try {
+      const parsed = JSON.parse(saved);
+      // Data Migration: Convert old 'startDate' format to new 'date' format
+      if (parsed.logs) {
+        parsed.logs = parsed.logs.map((log: any) => ({
+          ...log,
+          date: log.date || log.startDate
+        }));
+      }
+      return parsed;
+    } catch (e) {
+      console.error("Failed to parse saved data", e);
+      return {
+        logs: [],
+        symptoms: [],
+        settings: { 
+          averageCycleLength: 28, 
+          averagePeriodLength: 5,
+          lockMethod: undefined
+        }
+      };
+    }
   });
 
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
@@ -54,7 +76,7 @@ const App: React.FC = () => {
     if (!userData.settings.lockMethod) {
       setIsUnlocked(true);
     }
-  }, []);
+  }, [userData.settings.lockMethod]);
 
   useEffect(() => {
     localStorage.setItem('luna_cycle_data', JSON.stringify(userData));
@@ -69,8 +91,8 @@ const App: React.FC = () => {
   }, [userData, isSyncActive]);
 
   const cycleDay = useMemo(() => getCurrentCycleDay(userData.logs), [userData.logs]);
-  const avgCycle = useMemo(() => getCycleSummary(userData.logs, userData.settings.averageCycleLength), [userData.logs]);
-  const currentPhase = useMemo(() => determinePhase(cycleDay, avgCycle, userData.settings.averagePeriodLength), [cycleDay, avgCycle]);
+  const avgCycle = useMemo(() => getCycleSummary(userData.logs, userData.settings.averageCycleLength), [userData.logs, userData.settings.averageCycleLength]);
+  const currentPhase = useMemo(() => determinePhase(cycleDay, avgCycle, userData.settings.averagePeriodLength), [cycleDay, avgCycle, userData.settings.averagePeriodLength]);
   const nextPeriod = useMemo(() => calculateNextPeriod(userData.logs, avgCycle), [userData.logs, avgCycle]);
   
   const daysUntilNext = nextPeriod ? differenceInDays(nextPeriod, new Date()) : 28;
@@ -85,7 +107,6 @@ const App: React.FC = () => {
       let newLogs = [...prev.logs];
       let newSymptoms = [...prev.symptoms];
 
-      // Handle Period Log
       const filteredLogs = newLogs.filter(l => l.date !== payload.date);
       if (payload.period) {
         newLogs = [...filteredLogs, payload.period].sort((a,b) => a.date.localeCompare(b.date));
@@ -93,7 +114,6 @@ const App: React.FC = () => {
         newLogs = filteredLogs;
       }
 
-      // Handle Symptom Log
       const filteredSymptoms = newSymptoms.filter(s => s.date !== payload.date);
       if (payload.symptom) {
         newSymptoms = [...filteredSymptoms, payload.symptom].sort((a,b) => a.date.localeCompare(b.date));
@@ -166,7 +186,7 @@ const App: React.FC = () => {
       <header className="p-8 md:p-12 flex items-center justify-between max-w-5xl mx-auto">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-white rounded-2xl shadow-sm border border-rose-100 flex items-center justify-center text-2xl animate-bounce duration-3000">
-            {PHASE_ICONS[currentPhase]}
+            {PHASE_ICONS[currentPhase] || '✨'}
           </div>
           <div>
             <h1 className="text-4xl font-serif text-rose-900 tracking-tight leading-none">Luna</h1>
@@ -232,15 +252,15 @@ const App: React.FC = () => {
         {activeTab === 'overview' && (
           <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
             <section className="bg-white rounded-[3.5rem] p-10 md:p-14 shadow-xl shadow-rose-100/40 border border-white text-center relative overflow-hidden glass-card">
-              <div className={`absolute top-0 left-0 w-full h-3 ${PHASE_COLORS[currentPhase]}`}></div>
+              <div className={`absolute top-0 left-0 w-full h-3 ${PHASE_COLORS[currentPhase] || 'bg-rose-100'}`}></div>
               
               <div className="relative inline-block mb-10">
-                <div className={`w-56 h-56 md:w-72 md:h-72 rounded-full border-[12px] border-white shadow-xl ${PHASE_COLORS[currentPhase]} opacity-20 flex items-center justify-center animate-pulse`}></div>
+                <div className={`w-56 h-56 md:w-72 md:h-72 rounded-full border-[12px] border-white shadow-xl ${PHASE_COLORS[currentPhase] || 'bg-rose-100'} opacity-20 flex items-center justify-center animate-pulse`}></div>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-5xl mb-2">{PHASE_ICONS[currentPhase]}</span>
+                  <span className="text-5xl mb-2">{PHASE_ICONS[currentPhase] || '🌙'}</span>
                   <span className="text-xs font-bold text-rose-300 uppercase tracking-[0.3em] mb-1">Cycle Day</span>
                   <span className="text-7xl md:text-9xl font-serif text-rose-900 leading-none">{cycleDay}</span>
-                  <div className={`mt-3 px-4 py-1.5 rounded-full text-white text-xs font-bold ${PHASE_COLORS[currentPhase]} shadow-lg`}>
+                  <div className={`mt-3 px-4 py-1.5 rounded-full text-white text-xs font-bold ${PHASE_COLORS[currentPhase] || 'bg-rose-300'} shadow-lg`}>
                     {currentPhase}
                   </div>
                 </div>
