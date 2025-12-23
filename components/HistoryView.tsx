@@ -39,6 +39,10 @@ const HistoryView: React.FC<HistoryViewProps> = ({ userData }) => {
                   <div className="text-xl font-serif text-rose-900">
                     {format(parseISO(log.startDate), 'MMMM do, yyyy')}
                   </div>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="text-[9px] font-bold uppercase tracking-tighter text-rose-200">Intensity:</span>
+                    <span className="text-[10px] font-bold text-rose-400 capitalize">{log.intensity}</span>
+                  </div>
                 </div>
                 <div className="text-right">
                   <div className="text-[10px] text-rose-300 font-bold uppercase tracking-widest mb-1">Duration</div>
@@ -75,8 +79,13 @@ const HistoryView: React.FC<HistoryViewProps> = ({ userData }) => {
                   <span className="px-4 py-1.5 bg-gray-50 text-gray-400 text-[10px] font-bold uppercase tracking-[0.2em] rounded-full border border-gray-100">
                     {format(parseISO(symptom.date), 'EEEE, MMM do')}
                   </span>
-                  <div className="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center text-3xl shadow-inner shadow-rose-100">
-                    {MOODS.find(m => m.id === symptom.mood)?.emoji || '😶'}
+                  <div className="flex gap-1.5">
+                    {symptom.moods.map(mId => (
+                      <div key={mId} className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center text-2xl shadow-inner shadow-rose-100" title={mId}>
+                        {MOODS.find(m => m.id === mId)?.emoji || '😶'}
+                      </div>
+                    ))}
+                    {symptom.moods.length === 0 && <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-xl grayscale opacity-50">😶</div>}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">

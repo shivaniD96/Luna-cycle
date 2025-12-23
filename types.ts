@@ -8,7 +8,7 @@ export enum CyclePhase {
 
 export interface SymptomLog {
   date: string;
-  mood: string;
+  moods: string[]; // Changed from mood: string
   energy: number; // 1-5
   physicalSymptoms: string[];
   notes: string;
@@ -30,6 +30,11 @@ export interface UserData {
     lockMethod?: 'pin' | 'google';
     googleUserEmail?: string;
   };
+}
+
+export interface LogPayload {
+  period: PeriodLog | null;
+  symptom: SymptomLog | null;
 }
 
 export interface AIAdviceRequest {

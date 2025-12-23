@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { format, differenceInDays } from 'date-fns';
-import { UserData, PartnerData } from './types';
+import { UserData, PartnerData, LogPayload } from './types';
 import { calculateNextPeriod, getCurrentCycleDay, determinePhase, getCycleSummary } from './utils/cycleCalculator';
 import { PHASE_COLORS, PHASE_ICONS, PHASE_DESCRIPTIONS } from './constants';
 import LogModal from './components/LogModal';
@@ -78,15 +79,24 @@ const App: React.FC = () => {
     return userData.symptoms.find(s => s.date === todayStr)?.physicalSymptoms || [];
   }, [userData.symptoms]);
 
-  const handleSaveLog = (data: { type: 'period' | 'symptom', payload: any }) => {
-    if (data.type === 'period') {
-      setUserData(prev => ({ ...prev, logs: [...prev.logs, data.payload].sort((a,b) => a.startDate.localeCompare(b.startDate)) }));
-    } else {
-      setUserData(prev => {
-        const filtered = prev.symptoms.filter(s => s.date !== data.payload.date);
-        return { ...prev, symptoms: [...filtered, data.payload] };
-      });
-    }
+  const handleSaveLog = (payload: LogPayload) => {
+    setUserData(prev => {
+      let newLogs = [...prev.logs];
+      let newSymptoms = [...prev.symptoms];
+
+      if (payload.period) {
+        // Simple logic: add new log, or update if date matches exactly (simplified for now)
+        newLogs = [...newLogs, payload.period].sort((a,b) => a.startDate.localeCompare(b.startDate));
+      }
+
+      if (payload.symptom) {
+        // Replace existing log for that date if it exists
+        const filtered = newSymptoms.filter(s => s.date !== payload.symptom!.date);
+        newSymptoms = [...filtered, payload.symptom];
+      }
+
+      return { ...prev, logs: newLogs, symptoms: newSymptoms };
+    });
   };
 
   const handleEnableSync = async () => {
@@ -123,7 +133,6 @@ const App: React.FC = () => {
     };
     const url = `${window.location.origin}${window.location.pathname}#/partner-view?data=${btoa(JSON.stringify(shareObj))}`;
     setShareLink(url);
-    // Scroll to share link info
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
