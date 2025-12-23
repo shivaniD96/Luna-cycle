@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserData, AIProvider } from '../types';
 import { GoogleGenAI } from "@google/genai";
 
@@ -18,6 +18,19 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   const [isFormatting, setIsFormatting] = useState(false);
   const [formattedData, setFormattedData] = useState<string | null>(null);
   const [pinInput, setPinInput] = useState('');
+  const [hasPersonalKey, setHasPersonalKey] = useState(false);
+
+  useEffect(() => {
+    const checkKey = async () => {
+      // @ts-ignore
+      if (window.aistudio && window.aistudio.hasSelectedApiKey) {
+        // @ts-ignore
+        const selected = await window.aistudio.hasSelectedApiKey();
+        setHasPersonalKey(selected);
+      }
+    };
+    checkKey();
+  }, []);
 
   const handleSetPin = () => {
     if (pinInput.length === 4) {
@@ -26,6 +39,24 @@ const SettingsView: React.FC<SettingsViewProps> = ({
       alert('Privacy PIN set successfully!');
     } else {
       alert('PIN must be exactly 4 digits.');
+    }
+  };
+
+  const handleOpenKeySelector = async () => {
+    try {
+      // @ts-ignore
+      if (window.aistudio && window.aistudio.openSelectKey) {
+        // @ts-ignore
+        await window.aistudio.openSelectKey();
+        // Proceed as if successful per guidelines to mitigate race conditions
+        setHasPersonalKey(true);
+        alert('API Key selector opened. Once you select a key, your personal quota will be active!');
+      } else {
+        alert('Personal API Key selection is only available when hosted in the AI Studio environment. If you are running locally, please use the Grok/Custom option below.');
+      }
+    } catch (e) {
+      console.error('Error opening key selector:', e);
+      alert('Failed to open the key selector. Please try refreshing.');
     }
   };
 
@@ -88,13 +119,32 @@ const SettingsView: React.FC<SettingsViewProps> = ({
             <p className="text-indigo-200 text-xs px-2 leading-relaxed">
               Using Google's most efficient model. If you hit rate limits, switch to Grok or connect your personal Google key.
             </p>
-            <button 
-              // @ts-ignore
-              onClick={async () => { await window.aistudio.openSelectKey(); alert('Personal key linked!'); }}
-              className="w-full py-3 bg-white/10 border border-white/20 text-white rounded-xl text-xs font-bold hover:bg-white/20 transition-all"
-            >
-              Scale Personal Gemini Quota
-            </button>
+            <div className="space-y-3">
+              <button 
+                onClick={handleOpenKeySelector}
+                className={`w-full py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${hasPersonalKey ? 'bg-emerald-500 text-white shadow-lg' : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'}`}
+              >
+                {hasPersonalKey ? (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                    Personal Key Active
+                  </>
+                ) : (
+                  'Scale Personal Gemini Quota'
+                )}
+              </button>
+              {hasPersonalKey && (
+                <button 
+                  onClick={handleOpenKeySelector}
+                  className="w-full text-[10px] text-indigo-300 uppercase font-bold tracking-widest hover:text-white transition-colors"
+                >
+                  Change Selected Key
+                </button>
+              )}
+            </div>
+            <p className="text-[10px] text-indigo-400 text-center font-bold px-4 leading-normal uppercase">
+              Note: Key selection requires a paid GCP project (billing documentation at ai.google.dev/gemini-api/docs/billing).
+            </p>
           </div>
         )}
       </section>
