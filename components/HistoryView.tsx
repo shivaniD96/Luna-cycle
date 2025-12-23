@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   format, 
   startOfMonth, 
@@ -10,7 +10,6 @@ import {
   addMonths, 
   startOfWeek, 
   endOfWeek,
-  parseISO,
   addDays,
   startOfDay,
   setMonth,
@@ -18,13 +17,28 @@ import {
   getYear
 } from 'date-fns';
 import { UserData, CyclePhase } from '../types';
-import { MOODS, PHASE_COLORS, PHASE_ICONS } from '../constants';
+import { PHASE_COLORS, PHASE_ICONS } from '../constants';
 import { getPhaseForDate, getPeriodStartDates } from '../utils/cycleCalculator';
 
 interface HistoryViewProps {
   userData: UserData;
   onDayClick: (date: string) => void;
 }
+
+const HistoryLegend = () => (
+  <div className="flex flex-wrap items-center justify-center gap-3 mb-6 px-2">
+    {Object.entries(PHASE_COLORS).map(([phase, color]) => (
+      <div key={phase} className="flex items-center gap-1.5 bg-white/50 px-2.5 py-1 rounded-full border border-rose-50/50 shadow-sm">
+        <div className={`w-2 h-2 rounded-full ${color}`}></div>
+        <span className="text-[9px] font-bold text-rose-800/60 uppercase tracking-widest">{phase}</span>
+      </div>
+    ))}
+    <div className="flex items-center gap-1.5 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100 shadow-sm">
+      <div className="w-2 h-2 rounded-full border border-dashed border-rose-300"></div>
+      <span className="text-[9px] font-bold text-rose-400 uppercase tracking-widest">Prediction</span>
+    </div>
+  </div>
+);
 
 const HistoryView: React.FC<HistoryViewProps> = ({ userData, onDayClick }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -37,10 +51,10 @@ const HistoryView: React.FC<HistoryViewProps> = ({ userData, onDayClick }) => {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
       {/* Current Month Focused Card */}
       <div className="bg-white rounded-[3rem] p-8 shadow-xl shadow-rose-100/30 border border-white glass-card relative overflow-hidden">
-        <div className="flex items-center justify-between mb-8 relative z-10">
+        <div className="flex items-center justify-between mb-6 relative z-10">
           <div>
             <h3 className="text-3xl font-serif text-rose-900">{format(currentMonth, 'MMMM yyyy')}</h3>
-            <p className="text-[10px] text-rose-300 font-bold uppercase tracking-[0.2em] mt-1">Current Cycle Overview</p>
+            <p className="text-[10px] text-rose-300 font-bold uppercase tracking-[0.2em] mt-1">Hormonal Roadmap</p>
           </div>
           <button 
             onClick={() => setIsExpanded(true)}
@@ -50,6 +64,8 @@ const HistoryView: React.FC<HistoryViewProps> = ({ userData, onDayClick }) => {
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:translate-x-1 transition-transform"><path d="m9 18 6-6-6-6"/></svg>
           </button>
         </div>
+
+        <HistoryLegend />
 
         <MonthGrid 
           month={currentMonth} 
@@ -64,13 +80,13 @@ const HistoryView: React.FC<HistoryViewProps> = ({ userData, onDayClick }) => {
       {/* Cycle Stats Summary */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-rose-50/50 p-6 rounded-[2.5rem] border border-rose-100 glass-card">
-          <p className="text-[10px] text-rose-300 font-bold uppercase tracking-widest mb-1">Status</p>
+          <p className="text-[10px] text-rose-300 font-bold uppercase tracking-widest mb-1">Consistency</p>
           <div className="flex items-baseline gap-1">
-            <p className="text-3xl font-serif text-rose-900">{userData.logs.length > 3 ? 'Regular' : 'Tracking'}</p>
+            <p className="text-3xl font-serif text-rose-900">{userData.logs.length > 3 ? 'Stable' : 'New User'}</p>
           </div>
         </div>
         <div className="bg-indigo-50/50 p-6 rounded-[2.5rem] border border-indigo-100 glass-card">
-          <p className="text-[10px] text-indigo-300 font-bold uppercase tracking-widest mb-1">Logs Created</p>
+          <p className="text-[10px] text-indigo-300 font-bold uppercase tracking-widest mb-1">Total Logs</p>
           <p className="text-3xl font-serif text-indigo-900">{userData.logs.length + userData.symptoms.length}</p>
         </div>
       </div>
@@ -103,8 +119,8 @@ const FullRoadmapModal: React.FC<RoadmapModalProps> = ({ userData, onClose, onDa
 
   const monthRange = useMemo(() => {
     const range = [];
-    const start = addMonths(baseDate, -12);
-    for (let i = 0; i < 36; i++) {
+    const start = addMonths(baseDate, -6);
+    for (let i = 0; i < 24; i++) {
       range.push(addMonths(start, i));
     }
     return range;
@@ -112,7 +128,7 @@ const FullRoadmapModal: React.FC<RoadmapModalProps> = ({ userData, onClose, onDa
 
   const years = useMemo(() => {
     const currentYear = getYear(new Date());
-    return Array.from({ length: 6 }, (_, i) => currentYear - 2 + i);
+    return Array.from({ length: 6 }, (_, i) => currentYear - 1 + i);
   }, []);
 
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -126,27 +142,19 @@ const FullRoadmapModal: React.FC<RoadmapModalProps> = ({ userData, onClose, onDa
   return (
     <div className="fixed inset-0 z-[100] bg-[#fff9f8] animate-in fade-in zoom-in-95 duration-300 flex flex-col">
       <header className="p-6 md:p-10 bg-[#fff9f8]/95 backdrop-blur-xl border-b border-rose-50 shadow-sm relative z-20">
-        <div className="flex items-center justify-between mb-8 max-w-5xl mx-auto">
+        <div className="flex items-center justify-between mb-4 max-w-5xl mx-auto">
           <div>
             <h2 className="text-4xl font-serif text-rose-900">Your Roadmap</h2>
-            <p className="text-[10px] text-rose-300 font-bold uppercase tracking-[0.2em] mt-1">Scroll to see future cycles</p>
+            <p className="text-[10px] text-rose-300 font-bold uppercase tracking-[0.2em] mt-1">Scroll for predictions</p>
           </div>
           <button onClick={onClose} className="w-14 h-14 bg-white text-rose-400 rounded-[1.5rem] flex items-center justify-center hover:bg-rose-50 transition-all border border-rose-100 shadow-md">
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
         </div>
 
-        {/* Legend */}
-        <div className="max-w-5xl mx-auto mb-8 flex flex-wrap gap-4 justify-center md:justify-start">
-          {Object.entries(PHASE_COLORS).map(([phase, color]) => (
-            <div key={phase} className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-rose-50 shadow-sm">
-              <div className={`w-2.5 h-2.5 rounded-full ${color}`}></div>
-              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{phase}</span>
-            </div>
-          ))}
-        </div>
+        <HistoryLegend />
 
-        <div className="flex flex-col md:flex-row items-center gap-4 max-w-5xl mx-auto">
+        <div className="flex flex-col md:flex-row items-center gap-4 max-w-5xl mx-auto mt-4">
           <div className="flex items-center gap-2 bg-white/50 p-1.5 rounded-2xl border border-rose-50">
             <select 
               className="bg-transparent border-none text-sm font-bold text-rose-600 outline-none px-2 py-1 cursor-pointer"
@@ -189,9 +197,6 @@ const FullRoadmapModal: React.FC<RoadmapModalProps> = ({ userData, onClose, onDa
               />
             </div>
           ))}
-        </div>
-        <div className="text-center py-20 opacity-20">
-          <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-rose-300">End of records</p>
         </div>
       </div>
     </div>
@@ -267,22 +272,17 @@ const MonthGrid: React.FC<MonthGridProps> = ({ month, userData, onDayClick, avgC
               onClick={() => onDayClick(dateStr)}
               className={`
                 relative h-12 md:h-20 rounded-2xl md:rounded-[1.5rem] flex flex-col items-center justify-center transition-all group overflow-hidden border-2
-                ${periodEntry ? 'bg-rose-400 text-white border-rose-400 shadow-lg shadow-rose-100' : predicted ? 'bg-rose-50/20 border-dashed border-rose-200 text-rose-800' : 'bg-rose-50/5 border-transparent text-gray-700 hover:bg-rose-50/20'}
+                ${periodEntry ? 'bg-rose-400 text-white border-rose-400 shadow-lg' : predicted ? 'bg-rose-50/20 border-dashed border-rose-300 text-rose-800' : 'bg-rose-50/5 border-transparent text-gray-700 hover:bg-rose-50/20'}
                 ${isToday && !periodEntry ? 'ring-2 ring-rose-300 ring-offset-2' : ''}
                 hover:scale-105 active:scale-95
               `}
             >
-              <div className={`absolute left-0 top-0 bottom-0 w-1 ${PHASE_COLORS[phase]} opacity-50`}></div>
+              <div className={`absolute left-0 top-0 bottom-0 w-1 ${PHASE_COLORS[phase as CyclePhase]} opacity-50`}></div>
               <span className={`text-sm md:text-base font-bold z-10 ${periodEntry ? 'text-white' : 'text-gray-700'}`}>
                 {format(day, 'd')}
               </span>
               {symptomEntry && !periodEntry && (
-                <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse"></div>
-              )}
-              {(periodEntry || predicted) && !isCompact && (
-                 <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none scale-150">
-                   <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                 </div>
+                <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-indigo-400 rounded-full"></div>
               )}
             </button>
           );

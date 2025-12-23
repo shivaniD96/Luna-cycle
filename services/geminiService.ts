@@ -1,17 +1,15 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { AIAdviceRequest } from "../types";
 
 export const getCycleAdvice = async (req: AIAdviceRequest): Promise<string[]> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const prompt = req.role === 'partner' 
-    ? `The user is currently in the ${req.phase} phase of their menstrual cycle. 
-       Reported symptoms: ${req.symptoms.join(', ') || 'None reported'}.
-       Next period is roughly in ${req.daysRemaining} days.
-       As an empathetic AI assistant, provide a list of specific, actionable tips for their partner on how to best support them.`
-    : `I am in the ${req.phase} phase of my cycle. 
-       Symptoms: ${req.symptoms.join(', ')}.
-       Provide a list of 3-4 self-care tips for me for this specific phase of my cycle focusing on nutrition, mood, and movement.`;
+  const roleInstruction = req.role === 'partner' 
+    ? `You are an empathetic support guide for a partner. The user is in their ${req.phase} phase. Symptoms: ${req.symptoms.join(', ') || 'none'}. Period in ${req.daysRemaining} days.`
+    : `You are a self-care expert for women. I am in my ${req.phase} phase. Symptoms: ${req.symptoms.join(', ') || 'none'}. Period in ${req.daysRemaining} days.`;
+
+  const prompt = `${roleInstruction} Provide exactly 3 concise, practical tips as a JSON array of strings named "tips". Do not include medical advice.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -25,19 +23,20 @@ export const getCycleAdvice = async (req: AIAdviceRequest): Promise<string[]> =>
             tips: {
               type: Type.ARRAY,
               items: { type: Type.STRING },
-              description: "List of advice strings"
+              description: "Actionable advice strings"
             }
           },
           required: ["tips"]
         },
-        temperature: 0.7,
+        temperature: 0.8,
       },
     });
 
-    const data = JSON.parse(response.text || '{"tips": []}');
+    const text = response.text || '{"tips": []}';
+    const data = JSON.parse(text);
     return data.tips || [];
   } catch (error) {
     console.error("Gemini Error:", error);
-    return ["I'm having trouble connecting to your AI guide right now. Please try again soon."];
+    return ["Your guide is catching its breath. Tap refresh in a moment for fresh wisdom!"];
   }
 };
