@@ -167,7 +167,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen pb-24 relative">
+    <div className="min-h-screen pb-32 relative">
       <header className="p-8 md:p-12 max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
@@ -226,10 +226,19 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className="bg-rose-50/50 rounded-[2.5rem] p-6 mb-4">
+              <div className="bg-rose-50/50 rounded-[2.5rem] p-6 mb-8">
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">{daysUntilNext === 0 ? "Expected Today" : `${daysUntilNext} Days Remaining`}</h2>
                 <p className="text-gray-500 max-w-md mx-auto leading-relaxed text-sm font-medium">{PHASE_DESCRIPTIONS[currentPhase]}</p>
               </div>
+
+              {/* LOG BUTTON (STAYED PERSISTENT) */}
+              <button 
+                onClick={() => { setLogModalDate(format(new Date(), 'yyyy-MM-dd')); setIsLogModalOpen(true); }}
+                className={`w-full max-w-xs mx-auto py-5 rounded-[2rem] text-white font-bold shadow-2xl transition-all flex items-center justify-center gap-3 squishy text-lg ${PHASE_COLORS[currentPhase] || 'bg-rose-400'}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z"/></svg>
+                Log Today
+              </button>
             </section>
 
             <AdvicePanel 

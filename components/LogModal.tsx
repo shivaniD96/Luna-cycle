@@ -120,16 +120,16 @@ const LogModal: React.FC<LogModalProps> = ({ isOpen, onClose, onSave, userData, 
           <div className="space-y-8 pb-10">
             {activeTab === 'period' ? (
               <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-                <div className="flex items-center justify-between p-6 bg-rose-50/30 rounded-3xl border-2 border-rose-50/50">
+                <div className="flex items-center justify-between p-6 bg-rose-50/30 rounded-3xl border-2 border-rose-50/50 transition-colors">
                    <div>
                       <p className="font-bold text-gray-800 text-sm">Include Period Log</p>
                       <p className="text-[10px] text-rose-300 uppercase font-bold tracking-widest mt-0.5">Toggle to add/remove this day</p>
                    </div>
                    <button 
                     onClick={() => setIsPeriodDay(!isPeriodDay)}
-                    className={`w-12 h-7 rounded-full transition-all relative ${isPeriodDay ? 'bg-rose-400' : 'bg-gray-200'}`}
+                    className={`w-12 h-7 rounded-full transition-all relative duration-300 ${isPeriodDay ? 'bg-rose-400' : 'bg-gray-200'}`}
                    >
-                     <div className={`absolute top-0.5 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${isPeriodDay ? 'left-5.5' : 'left-0.5'}`}></div>
+                     <div className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 ease-in-out ${isPeriodDay ? 'translate-x-5' : 'translate-x-0'}`}></div>
                    </button>
                 </div>
 
