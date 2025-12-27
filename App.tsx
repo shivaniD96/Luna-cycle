@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { format, differenceInDays } from 'date-fns';
 import { UserData, PartnerData, LogPayload } from './types';
 import { calculateNextPeriod, getCurrentCycleDay, determinePhase, getCycleSummary } from './utils/cycleCalculator';
@@ -25,6 +24,9 @@ const App: React.FC = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
     return localStorage.getItem('luna_notifications_enabled') === 'true';
   });
+
+  // This flag prevents auto-saving empty data to the cloud before the first download finishes
+  const isInitialLoad = useRef(true);
   
   const [userData, setUserData] = useState<UserData>(() => {
     const saved = localStorage.getItem('luna_cycle_data');
@@ -49,6 +51,7 @@ const App: React.FC = () => {
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [logModalDate, setLogModalDate] = useState<string | undefined>();
 
+  // Handle Initial Sync on Boot
   useEffect(() => {
     const initSync = async () => {
       const savedToken = localStorage.getItem('luna_google_token');
@@ -61,13 +64,21 @@ const App: React.FC = () => {
             setUserData(prev => {
               const cloudCount = (cloudData.logs?.length || 0) + (cloudData.symptoms?.length || 0);
               const localCount = (prev.logs?.length || 0) + (prev.symptoms?.length || 0);
-              return cloudCount >= localCount ? cloudData : prev;
+              // If we have more or equal data in the cloud, or we just cleared cache (localCount is 0), take the cloud data
+              if (localCount === 0 || cloudCount >= localCount) {
+                return cloudData;
+              }
+              return prev;
             });
           }
         } catch (e) {
           console.error("Cloud check failed during boot");
+        } finally {
+          setIsSyncing(false);
+          isInitialLoad.current = false;
         }
-        setIsSyncing(false);
+      } else {
+        isInitialLoad.current = false;
       }
     };
     initSync();
@@ -87,13 +98,22 @@ const App: React.FC = () => {
     }
   }, [cloudEnabled]);
 
+  // Handle Auto-Save to Cloud
   useEffect(() => {
+    // Save to LocalStorage immediately
     localStorage.setItem('luna_cycle_data', JSON.stringify(userData));
-    if (SyncService.accessToken && cloudEnabled) {
+    
+    // Only save to cloud if fully loaded and cloud is enabled
+    if (SyncService.accessToken && cloudEnabled && !isInitialLoad.current) {
       const debounceTimer = setTimeout(async () => {
         setIsSyncing(true);
-        await SyncService.saveToCloud(userData);
-        setIsSyncing(false);
+        try {
+          await SyncService.saveToCloud(userData);
+        } catch (e) {
+          console.error("Auto-save failed", e);
+        } finally {
+          setIsSyncing(false);
+        }
       }, 2000);
       return () => clearTimeout(debounceTimer);
     }
@@ -105,14 +125,24 @@ const App: React.FC = () => {
     localStorage.setItem('luna_cloud_enabled', 'true');
     setIsSyncing(true);
     
+    // Set load flag to true to block auto-save while we restore
+    isInitialLoad.current = true;
+
     SyncService.initSync().then(async () => {
-      const cloudData = await SyncService.downloadFromCloud();
-      if (cloudData) {
-        setUserData(cloudData);
-      } else {
-        await SyncService.saveToCloud(userData);
+      try {
+        const cloudData = await SyncService.downloadFromCloud();
+        if (cloudData) {
+          setUserData(cloudData);
+        } else {
+          // If no cloud data found, upload our current local data
+          await SyncService.saveToCloud(userData);
+        }
+      } catch (err) {
+        console.error("Failed to link cloud", err);
+      } finally {
+        setIsSyncing(false);
+        isInitialLoad.current = false;
       }
-      setIsSyncing(false);
     });
   };
 

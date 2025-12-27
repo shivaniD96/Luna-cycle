@@ -52,6 +52,12 @@ const PhaseDictionary = () => (
   </div>
 );
 
+// Defined the HistoryViewProps interface which was missing in the original file
+interface HistoryViewProps {
+  userData: UserData;
+  onDayClick: (date: string) => void;
+}
+
 const HistoryView: React.FC<HistoryViewProps> = ({ userData, onDayClick }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const currentMonth = useMemo(() => new Date(), []);
