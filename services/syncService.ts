@@ -3,7 +3,7 @@ import { UserData } from '../types';
 
 /**
  * Luna Private Cloud Engine
- * Powered by Vercel Environment Variables.
+ * Powered by Environment Variables injected via Vite.
  */
 const BACKUP_FILENAME = 'luna_private_vault.json';
 
@@ -12,8 +12,8 @@ export const SyncService = {
   fileId: null as string | null,
 
   getClientId() {
-    // This variable is injected at build time by Vercel/esbuild
-    return (process.env as any).GOOGLE_CLIENT_ID || '';
+    // Direct access allows Vite's 'define' plugin to perform static replacement
+    return process.env.GOOGLE_CLIENT_ID || '';
   },
 
   setToken(token: string) {
@@ -32,7 +32,7 @@ export const SyncService = {
     const clientId = this.getClientId();
     
     if (!clientId) {
-      console.error("CRITICAL: GOOGLE_CLIENT_ID is not set in Vercel environment variables.");
+      console.error("CRITICAL: GOOGLE_CLIENT_ID is not set.");
       onError('MISSING_CLIENT_ID');
       return;
     }

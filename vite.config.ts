@@ -14,7 +14,8 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        // Use standard API_KEY and GOOGLE_CLIENT_ID expected by the app and platform
+        // Define an empty process.env object to prevent 'process is not defined' errors
+        'process.env': {},
         'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY),
         'process.env.GOOGLE_CLIENT_ID': JSON.stringify(env.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)
       },
