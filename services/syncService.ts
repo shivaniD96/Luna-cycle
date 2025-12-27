@@ -3,13 +3,8 @@ import { UserData } from '../types';
 
 /**
  * Luna Private Cloud Engine
- * 
- * To use Google Drive Sync, you need a Google Cloud Project Client ID.
- * 1. Go to https://console.cloud.google.com/
- * 2. Create a project and 'OAuth client ID' (Web Application)
- * 3. Add your current URL to 'Authorized JavaScript Origins'
+ * Powered by Vercel Environment Variables.
  */
-const PLACEHOLDER_ID = 'YOUR_GOOGLE_CLIENT_ID'; 
 const BACKUP_FILENAME = 'luna_private_vault.json';
 
 export const SyncService = {
@@ -17,13 +12,8 @@ export const SyncService = {
   fileId: null as string | null,
 
   getClientId() {
-    const saved = localStorage.getItem('luna_custom_client_id');
-    if (saved && saved !== PLACEHOLDER_ID) return saved;
-    return PLACEHOLDER_ID;
-  },
-
-  setCustomClientId(id: string) {
-    localStorage.setItem('luna_custom_client_id', id);
+    // This variable is injected at build time by Vercel/esbuild
+    return (process.env as any).GOOGLE_CLIENT_ID || '';
   },
 
   setToken(token: string) {
@@ -41,7 +31,8 @@ export const SyncService = {
   async triggerLogin(onSuccess: (token: string) => void, onError: (err?: any) => void) {
     const clientId = this.getClientId();
     
-    if (!clientId || clientId === PLACEHOLDER_ID) {
+    if (!clientId) {
+      console.error("CRITICAL: GOOGLE_CLIENT_ID is not set in Vercel environment variables.");
       onError('MISSING_CLIENT_ID');
       return;
     }
@@ -54,8 +45,6 @@ export const SyncService = {
         callback: (response: any) => {
           if (response.access_token) {
             onSuccess(response.access_token);
-          } else if (response.error === 'invalid_client') {
-            onError('INVALID_CLIENT');
           } else {
             onError(response);
           }
@@ -63,7 +52,7 @@ export const SyncService = {
       });
       client.requestAccessToken();
     } catch (e) {
-      console.error("Auth initialization failed", e);
+      console.error("Google Auth initialization failed", e);
       onError(e);
     }
   },
