@@ -26,6 +26,7 @@ const App: React.FC = () => {
   });
 
   // Sync lifecycle: idle -> restoring -> ready
+  // CRITICAL: App starts in 'idle' and won't save to cloud until it moves to 'ready'
   const [syncStatus, setSyncStatus] = useState<'idle' | 'restoring' | 'ready'>('idle');
   
   const [userData, setUserData] = useState<UserData>(() => {
@@ -72,6 +73,7 @@ const App: React.FC = () => {
           setSyncStatus('ready');
         }
       } else {
+        // If not cloud enabled, we are ready to use local storage immediately
         setSyncStatus('ready');
       }
     };
@@ -97,15 +99,15 @@ const App: React.FC = () => {
     // Save locally
     localStorage.setItem('luna_cycle_data', JSON.stringify(userData));
     
-    // Save to Cloud ONLY if we aren't currently restoring
+    // Cloud sync - ONLY run if syncStatus is 'ready'
+    // This prevents a race condition where empty local data overwrites the cloud during restoration
     if (SyncService.accessToken && cloudEnabled && syncStatus === 'ready') {
       const debounceTimer = setTimeout(async () => {
         setIsSyncing(true);
         try {
-          const success = await SyncService.saveToCloud(userData);
-          if (success) console.log("Cloud sync successful.");
+          await SyncService.saveToCloud(userData);
         } catch (e) {
-          console.error("Cloud sync failed.", e);
+          console.error("Cloud sync background task failed.", e);
         } finally {
           setIsSyncing(false);
         }
@@ -122,19 +124,23 @@ const App: React.FC = () => {
     setSyncStatus('restoring');
 
     try {
+      // First, try to find and download existing data
       const cloudData = await SyncService.downloadFromCloud();
       if (cloudData) {
-        // If local data exists, confirm overwrite
+        // Only prompt if local state has any logs to lose
         const localDataPresent = userData.logs.length > 0 || userData.symptoms.length > 0;
-        if (!localDataPresent || confirm("Existing cloud vault found. Load it now? (This replaces local data)")) {
+        if (!localDataPresent || confirm("Existing cloud vault found! Load it now and replace current logs?")) {
           setUserData(cloudData);
+          alert("Success! Your cycle history has been restored from the vault.");
         }
       } else {
-        // New user? Upload local data immediately to initialize
+        // If no file exists in Drive, we upload the current local state to start the backup
         await SyncService.saveToCloud(userData);
+        console.log("New cloud vault created with local data.");
       }
     } catch (err) {
       console.error("Linking cloud failed:", err);
+      alert("Failed to connect to Drive. Please check your internet.");
     } finally {
       setIsSyncing(false);
       setSyncStatus('ready');
@@ -241,7 +247,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-full border border-indigo-100 animate-pulse transition-all">
             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
             <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">
-              {syncStatus === 'restoring' ? 'Restoring...' : 'Syncing Vault'}
+              {syncStatus === 'restoring' ? 'Checking Vault...' : 'Saving Vault'}
             </span>
           </div>
         )}

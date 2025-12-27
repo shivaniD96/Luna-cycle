@@ -52,19 +52,21 @@ export const SyncService = {
   },
 
   /**
-   * Searches for the existing vault file.
+   * Searches for the existing vault file across the visible Drive space.
    */
   async findVaultFile() {
     if (!this.accessToken) return null;
 
     try {
+      // spaces=drive ensures we check the visible user storage, not hidden folders
       const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=name='${BACKUP_FILENAME}' and trashed=false&fields=files(id, name)`,
+        `https://www.googleapis.com/drive/v3/files?q=name='${BACKUP_FILENAME}' and trashed=false&spaces=drive&fields=files(id, name)`,
         { headers: { Authorization: `Bearer ${this.accessToken}` } }
       );
       const data = await response.json();
       if (data.files && data.files.length > 0) {
         this.fileId = data.files[0].id;
+        console.log("Vault found:", this.fileId);
         return this.fileId;
       }
       return null;
@@ -107,7 +109,7 @@ export const SyncService = {
   },
 
   /**
-   * Creates a new vault file in Drive with proper metadata.
+   * Creates a new vault file in Drive with proper metadata and visible placement.
    */
   async createVaultFile(userData: UserData) {
     if (!this.accessToken) return false;
@@ -115,10 +117,11 @@ export const SyncService = {
     const metadata = {
       name: BACKUP_FILENAME,
       mimeType: 'application/json',
-      description: 'LunaCycle Encrypted-at-Rest Cycle Vault'
+      description: 'LunaCycle Private Cycle Vault',
+      parents: ['root'] // Force visibility in the root folder
     };
 
-    const boundary = 'LunaBoundary';
+    const boundary = '-------LunaVaultBoundary';
     const delimiter = `\r\n--${boundary}\r\n`;
     const closeDelimiter = `\r\n--${boundary}--`;
 
@@ -143,6 +146,7 @@ export const SyncService = {
       const data = await response.json();
       if (data.id) {
         this.fileId = data.id;
+        console.log("Vault created successfully:", data.id);
         return true;
       }
       return false;
@@ -155,7 +159,7 @@ export const SyncService = {
   async downloadFromCloud(): Promise<UserData | null> {
     if (!this.accessToken) return null;
     
-    // Ensure we have a fileId
+    // Always search if we don't have an ID yet
     if (!this.fileId) {
       await this.findVaultFile();
     }
@@ -166,7 +170,10 @@ export const SyncService = {
       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${this.fileId}?alt=media`, {
         headers: { Authorization: `Bearer ${this.accessToken}` }
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        console.error("Vault download response error:", res.status);
+        return null;
+      }
       return await res.json();
     } catch (err) {
       console.error('Vault download failed', err);
