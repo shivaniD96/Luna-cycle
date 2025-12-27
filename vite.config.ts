@@ -1,4 +1,3 @@
-
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -14,10 +13,12 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        // Define an empty process.env object to prevent 'process is not defined' errors
-        'process.env': {},
-        'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY),
-        'process.env.GOOGLE_CLIENT_ID': JSON.stringify(env.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)
+        // Ensure process.env is available for libraries and custom code
+        'process.env': JSON.stringify({
+          ...env,
+          API_KEY: env.API_KEY || process.env.API_KEY || '',
+          GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || ''
+        })
       },
       resolve: {
         alias: {
