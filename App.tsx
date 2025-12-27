@@ -2,15 +2,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { format, differenceInDays } from 'date-fns';
 import { UserData, PartnerData, LogPayload } from './types';
-import { calculateNextPeriod, getCurrentCycleDay, determinePhase, getCycleSummary } from './utils/cycleCalculator.ts';
-import { PHASE_COLORS, PHASE_ICONS, PHASE_DESCRIPTIONS } from './constants.tsx';
-import LogModal from './components/LogModal.tsx';
-import AdvicePanel from './components/AdvicePanel.tsx';
-import HistoryView from './components/HistoryView.tsx';
-import SettingsView from './components/SettingsView.tsx';
-import AuthScreen from './components/AuthScreen.tsx';
-import PartnerPortal from './components/PartnerPortal.tsx';
-import { SyncService } from './services/syncService.ts';
+import { calculateNextPeriod, getCurrentCycleDay, determinePhase, getCycleSummary } from './utils/cycleCalculator';
+import { PHASE_COLORS, PHASE_ICONS, PHASE_DESCRIPTIONS } from './constants';
+import LogModal from './components/LogModal';
+import AdvicePanel from './components/AdvicePanel';
+import HistoryView from './components/HistoryView';
+import SettingsView from './components/SettingsView';
+import AuthScreen from './components/AuthScreen';
+import PartnerPortal from './components/PartnerPortal';
+import { SyncService } from './services/syncService';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'settings'>('overview');
@@ -61,7 +61,6 @@ const App: React.FC = () => {
             setUserData(prev => {
               const cloudCount = (cloudData.logs?.length || 0) + (cloudData.symptoms?.length || 0);
               const localCount = (prev.logs?.length || 0) + (prev.symptoms?.length || 0);
-              // Smart merge: Use the one with more entries as the source of truth
               return cloudCount >= localCount ? cloudData : prev;
             });
           }
