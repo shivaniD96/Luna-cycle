@@ -42,16 +42,7 @@ const App: React.FC = () => {
     try {
       return JSON.parse(saved);
     } catch (e) {
-      return {
-        logs: [],
-        symptoms: [],
-        settings: { 
-          averageCycleLength: 28, 
-          averagePeriodLength: 5,
-          lockMethod: undefined,
-          aiProvider: 'gemini'
-        }
-      };
+      return { logs: [], symptoms: [], settings: { averageCycleLength: 28, averagePeriodLength: 5, aiProvider: 'gemini' } };
     }
   });
 
@@ -64,13 +55,18 @@ const App: React.FC = () => {
       if (savedToken && cloudEnabled) {
         SyncService.setToken(savedToken);
         setIsSyncing(true);
-        const cloudData = await SyncService.downloadFromCloud();
-        if (cloudData) {
-          setUserData(prev => {
-            const cloudCount = (cloudData.logs?.length || 0) + (cloudData.symptoms?.length || 0);
-            const localCount = (prev.logs?.length || 0) + (prev.symptoms?.length || 0);
-            return cloudCount >= localCount ? cloudData : prev;
-          });
+        try {
+          const cloudData = await SyncService.downloadFromCloud();
+          if (cloudData) {
+            setUserData(prev => {
+              const cloudCount = (cloudData.logs?.length || 0) + (cloudData.symptoms?.length || 0);
+              const localCount = (prev.logs?.length || 0) + (prev.symptoms?.length || 0);
+              // Smart merge: Use the one with more entries as the source of truth
+              return cloudCount >= localCount ? cloudData : prev;
+            });
+          }
+        } catch (e) {
+          console.error("Cloud check failed during boot");
         }
         setIsSyncing(false);
       }
@@ -97,9 +93,9 @@ const App: React.FC = () => {
     if (SyncService.accessToken && cloudEnabled) {
       const debounceTimer = setTimeout(async () => {
         setIsSyncing(true);
-        const success = await SyncService.saveToCloud(userData);
+        await SyncService.saveToCloud(userData);
         setIsSyncing(false);
-      }, 1500);
+      }, 2000);
       return () => clearTimeout(debounceTimer);
     }
   }, [userData, cloudEnabled]);
@@ -127,7 +123,7 @@ const App: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Luna_Backup_${format(new Date(), 'yyyy-MM-dd')}.json`;
+    link.download = `Luna_Vault_${format(new Date(), 'yyyy-MM-dd')}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -142,20 +138,18 @@ const App: React.FC = () => {
     reader.onload = (e) => {
       try {
         const importedData = JSON.parse(e.target?.result as string);
-        if (importedData.logs && importedData.settings) {
-          if (confirm("This will replace your current logs with the backup file. Continue?")) {
+        if (importedData.logs) {
+          if (confirm("Replace local data with this backup file?")) {
             setUserData(importedData);
-            alert("Data imported successfully! ✨");
+            alert("Success! Your vault is restored. ✨");
           }
-        } else {
-          alert("Invalid backup file format.");
         }
       } catch (err) {
-        alert("Error reading file.");
+        alert("Invalid file format.");
       }
     };
     reader.readAsText(file);
-    event.target.value = ''; // Reset input
+    event.target.value = '';
   };
 
   const avgCycle = useMemo(() => getCycleSummary(userData.logs, userData.settings.averageCycleLength), [userData.logs, userData.settings.averageCycleLength]);
@@ -175,18 +169,12 @@ const App: React.FC = () => {
       let newSymptoms = [...prev.symptoms];
 
       const filteredLogs = newLogs.filter(l => l.date !== payload.date);
-      if (payload.period) {
-        newLogs = [...filteredLogs, payload.period].sort((a,b) => a.date.localeCompare(b.date));
-      } else {
-        newLogs = filteredLogs;
-      }
+      newLogs = payload.period ? [...filteredLogs, payload.period] : filteredLogs;
+      newLogs.sort((a,b) => a.date.localeCompare(b.date));
 
       const filteredSymptoms = newSymptoms.filter(s => s.date !== payload.date);
-      if (payload.symptom) {
-        newSymptoms = [...filteredSymptoms, payload.symptom].sort((a,b) => a.date.localeCompare(b.date));
-      } else {
-        newSymptoms = filteredSymptoms;
-      }
+      newSymptoms = payload.symptom ? [...filteredSymptoms, payload.symptom] : filteredSymptoms;
+      newSymptoms.sort((a,b) => a.date.localeCompare(b.date));
 
       return { ...prev, logs: newLogs, symptoms: newSymptoms };
     });
@@ -227,9 +215,9 @@ const App: React.FC = () => {
         </div>
         
         {isSyncing && (
-          <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-full border border-indigo-100 animate-pulse">
+          <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-full border border-indigo-100 animate-pulse transition-all">
             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
-            <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Syncing</span>
+            <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Vault Syncing</span>
           </div>
         )}
       </nav>
@@ -237,7 +225,7 @@ const App: React.FC = () => {
       <main className="max-w-xl mx-auto px-6 pt-28">
         {activeTab === 'overview' && (
           <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700">
-            <section className="relative h-80 flex flex-col items-center justify-center text-center overflow-hidden rounded-[3.5rem] bg-white shadow-2xl shadow-rose-100/50 border border-white">
+            <section className="relative h-80 flex flex-col items-center justify-center text-center overflow-hidden rounded-[3.5rem] bg-white shadow-2xl shadow-rose-100/50 border border-white transition-all">
               <div className={`absolute inset-0 opacity-10 ${PHASE_COLORS[currentPhase]}`}></div>
               <div className="relative z-10 flex flex-col items-center">
                 <div className="text-7xl mb-6 transform hover:scale-110 transition-transform duration-500">{PHASE_ICONS[currentPhase]}</div>
@@ -249,13 +237,13 @@ const App: React.FC = () => {
               </div>
             </section>
 
-            <section className="bg-white rounded-[3rem] p-8 border border-rose-50 shadow-sm leading-relaxed">
-              <p className="text-gray-600 font-medium italic text-lg text-center">"{PHASE_DESCRIPTIONS[currentPhase]}"</p>
+            <section className="bg-white rounded-[3rem] p-8 border border-rose-50 shadow-sm leading-relaxed text-center italic text-gray-600 font-medium">
+              "{PHASE_DESCRIPTIONS[currentPhase]}"
             </section>
 
             <button 
               onClick={() => setIsLogModalOpen(true)}
-              className="w-full bg-rose-400 hover:bg-rose-500 text-white font-bold py-6 rounded-[2.5rem] shadow-xl shadow-rose-200 transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 squishy"
+              className="w-full bg-rose-400 hover:bg-rose-500 text-white font-bold py-6 rounded-[2.5rem] shadow-xl shadow-rose-200 transition-all transform hover:scale-[1.01] active:scale-[0.98] flex items-center justify-center gap-3 squishy"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
               Log Today
@@ -296,16 +284,16 @@ const App: React.FC = () => {
 
       <div className="fixed bottom-8 left-6 right-6 z-50">
         <nav className="max-w-md mx-auto bg-white/80 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl shadow-rose-200/50 border border-white/50 p-2 flex justify-around items-center h-20">
-          <button onClick={() => setActiveTab('overview')} className={`flex-1 flex flex-col items-center justify-center gap-1.5 transition-all ${activeTab === 'overview' ? 'text-rose-500 scale-110' : 'text-gray-300 hover:text-rose-300'}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <button onClick={() => setActiveTab('overview')} className={`flex-1 flex flex-col items-center justify-center gap-1.5 transition-all ${activeTab === 'overview' ? 'text-rose-500 scale-105' : 'text-gray-300 hover:text-rose-300'}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-11z"/></svg>
             <span className="text-[9px] font-bold uppercase tracking-widest">Today</span>
           </button>
-          <button onClick={() => setActiveTab('history')} className={`flex-1 flex flex-col items-center justify-center gap-1.5 transition-all ${activeTab === 'history' ? 'text-rose-500 scale-110' : 'text-gray-300 hover:text-rose-300'}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="M18 13v6"/><path d="M15 16h6"/></svg>
-            <span className="text-[9px] font-bold uppercase tracking-widest">Roadmap</span>
+          <button onClick={() => setActiveTab('history')} className={`flex-1 flex flex-col items-center justify-center gap-1.5 transition-all ${activeTab === 'history' ? 'text-rose-500 scale-105' : 'text-gray-300 hover:text-rose-300'}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
+            <span className="text-[9px] font-bold uppercase tracking-widest">History</span>
           </button>
-          <button onClick={() => setActiveTab('settings')} className={`flex-1 flex flex-col items-center justify-center gap-1.5 transition-all ${activeTab === 'settings' ? 'text-rose-500 scale-110' : 'text-gray-300 hover:text-rose-300'}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <button onClick={() => setActiveTab('settings')} className={`flex-1 flex flex-col items-center justify-center gap-1.5 transition-all ${activeTab === 'settings' ? 'text-rose-500 scale-105' : 'text-gray-300 hover:text-rose-300'}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             <span className="text-[9px] font-bold uppercase tracking-widest">Settings</span>
           </button>
         </nav>

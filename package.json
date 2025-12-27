@@ -1,12 +1,23 @@
 
 {
   "name": "luna-cycle-tracker",
-  "version": "1.0.0",
-  "description": "Privacy-first period tracker with private cloud sync.",
+  "version": "1.1.2",
+  "description": "Privacy-first period tracker with private Vercel cloud sync.",
+  "type": "module",
   "scripts": {
-    "build": "esbuild index.tsx --bundle --outfile=bundle.js --format=esm --jsx=automatic --minify --define:process.env.API_KEY='\"$API_KEY\"' --define:process.env.GOOGLE_CLIENT_ID='\"$GOOGLE_CLIENT_ID\"' --external:react --external:react-dom --external:date-fns --external:@google/genai && sed -i 's/index.tsx/bundle.js/g' index.html"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "date-fns": "^4.1.0",
+    "@google/genai": "^1.34.0"
   },
   "devDependencies": {
-    "esbuild": "^0.24.0"
+    "vite": "^6.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "typescript": "^5.0.0"
   }
 }

@@ -4,42 +4,42 @@ import { AIAdviceRequest, CyclePhase } from "../types";
 
 const FALLBACK_TIPS: Record<CyclePhase, string[]> = {
   [CyclePhase.MENSTRUAL]: [
-    "Prioritize deep rest tonight; your body is working hard and deserves a 'winter' slumber.",
-    "Sip on warm herbal teas like peppermint or raspberry leaf to soothe cramps and stay hydrated.",
-    "Gentle movement, like slow stretching or a short walk, can help ease pelvic congestion."
+    "Prioritize deep rest; your body is in its 'winter' phase and deserves extra care.",
+    "Warm herbal teas like peppermint can help soothe cramps and maintain hydration.",
+    "Gentle stretching or a short walk can help ease pelvic tension today."
   ],
   [CyclePhase.FOLLICULAR]: [
-    "Your energy is climbing! This is a great window to tackle complex projects or try a new recipe.",
-    "Incorporate light fermented foods like yogurt or kimchi to support hormonal metabolization.",
-    "Brainstorm new ideas today—your creativity is naturally higher during this 'spring' phase."
+    "Energy is rising! This is a great window to start new projects or creative hobbies.",
+    "Try incorporating light, fresh foods to support your metabolism during this 'spring' phase.",
+    "Your social battery is recharging—great time for a coffee date or brainstorming."
   ],
   [CyclePhase.OVULATION]: [
-    "You're at your social peak. It's a perfect time for group hangouts or important presentations.",
-    "Stay extra hydrated and enjoy vibrant, fresh foods to match your high-energy state.",
-    "High-intensity workouts usually feel great today—enjoy your natural strength and stamina."
+    "You're at your vibrant peak! Perfect for important presentations or social gatherings.",
+    "High-intensity movement often feels rewarding today—embrace your natural strength.",
+    "Confidence is naturally higher; trust your intuition and glow today."
   ],
   [CyclePhase.LUTEAL]: [
-    "Energy is turning inward. Focus on wrapping up existing tasks rather than starting new ones.",
-    "Prioritize magnesium-rich foods like dark chocolate or pumpkin seeds to help stabilize your mood.",
-    "Listen to your boundaries; it's okay to decline social invites and enjoy a quiet night in."
+    "Energy is turning inward. It's okay to decline plans and enjoy a quiet night in.",
+    "Magnesium-rich foods like dark chocolate can help stabilize mood and comfort.",
+    "Prioritize finishing existing tasks rather than starting complex new ones."
   ]
 };
 
 export const getCycleAdvice = async (req: AIAdviceRequest): Promise<string[]> => {
-  // Always try the primary Gemini key first
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const roleInstruction = req.role === 'partner' 
-    ? `Empathetic support guide for a partner. Phase: ${req.phase}. Symptoms: ${req.symptoms.join(', ') || 'none'}. Period in ${req.daysRemaining} days.`
-    : `Self-care expert for women. Phase: ${req.phase}. Symptoms: ${req.symptoms.join(', ') || 'none'}. Period in ${req.daysRemaining} days.`;
+  const systemInstruction = req.role === 'partner' 
+    ? "You are an empathetic support guide helping a partner understand their loved one's hormonal cycle. Provide practical, supportive, and kind advice."
+    : "You are a specialized hormone health and self-care expert. Provide high-quality, encouraging, and medically-grounded (but non-prescriptive) self-care tips.";
 
-  const prompt = `${roleInstruction} Provide exactly 3 short, helpful self-care tips as a JSON array of strings named "tips". Ensure the output is valid JSON.`;
+  const prompt = `Phase: ${req.phase}. Symptoms: ${req.symptoms.join(', ') || 'none'}. Period in ${req.daysRemaining} days. Provide 3 short tips as a JSON array named "tips".`;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
+        systemInstruction,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -51,14 +51,14 @@ export const getCycleAdvice = async (req: AIAdviceRequest): Promise<string[]> =>
           },
           required: ["tips"]
         },
-        temperature: 0.7,
+        temperature: 0.65,
       },
     });
+    
     const data = JSON.parse(response.text || '{"tips": []}');
     return (data.tips && data.tips.length > 0) ? data.tips : FALLBACK_TIPS[req.phase];
   } catch (error) {
-    console.warn("AI Service fallback triggered:", error);
-    // Return pre-set outputs if API fails
+    console.warn("Luna AI: Fallback tips provided due to API delay.");
     return FALLBACK_TIPS[req.phase];
   }
 };
