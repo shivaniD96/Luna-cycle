@@ -1,18 +1,28 @@
 
 import { UserData } from '../types';
 
-// IMPORTANT: Replace this with your actual Client ID from Google Cloud Console
-// Ensure your 'Authorized JavaScript Origins' matches your deployment URL.
-export const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID'; 
+/**
+ * Luna Private Cloud Engine
+ * 
+ * To use Google Drive Sync, you need a Google Cloud Project Client ID.
+ * 1. Go to https://console.cloud.google.com/
+ * 2. Create a project and 'OAuth client ID' (Web Application)
+ * 3. Add your current URL to 'Authorized JavaScript Origins'
+ */
+const DEFAULT_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID'; 
 const BACKUP_FILENAME = 'luna_private_vault.json';
 
-/**
- * Luna Automatic Sync Engine
- * Uses Google Drive AppData folder to silently sync data across devices.
- */
 export const SyncService = {
   accessToken: null as string | null,
   fileId: null as string | null,
+
+  getClientId() {
+    return localStorage.getItem('luna_custom_client_id') || DEFAULT_CLIENT_ID;
+  },
+
+  setCustomClientId(id: string) {
+    localStorage.setItem('luna_custom_client_id', id);
+  },
 
   setToken(token: string) {
     this.accessToken = token;
@@ -26,27 +36,31 @@ export const SyncService = {
     localStorage.removeItem('luna_cloud_enabled');
   },
 
-  /**
-   * Universal trigger for Google Identity Services flow
-   */
-  async triggerLogin(onSuccess: (token: string) => void, onError?: () => void) {
+  async triggerLogin(onSuccess: (token: string) => void, onError: (err?: any) => void) {
+    const clientId = this.getClientId();
+    
+    if (!clientId || clientId === 'YOUR_GOOGLE_CLIENT_ID') {
+      onError('MISSING_CLIENT_ID');
+      return;
+    }
+
     try {
       // @ts-ignore
       const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
+        client_id: clientId,
         scope: 'https://www.googleapis.com/auth/drive.appdata email profile',
         callback: (response: any) => {
           if (response.access_token) {
             onSuccess(response.access_token);
-          } else if (onError) {
-            onError();
+          } else {
+            onError(response);
           }
         },
       });
       client.requestAccessToken();
     } catch (e) {
       console.error("Auth initialization failed", e);
-      if (onError) onError();
+      onError(e);
     }
   },
 
@@ -97,7 +111,7 @@ export const SyncService = {
         }
       }
 
-      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${this.fileId}?uploadType=media`, {
+      const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${this.fileId}?uploadType=media`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
@@ -105,7 +119,7 @@ export const SyncService = {
         },
         body: JSON.stringify(userData)
       });
-      return true;
+      return res.ok;
     } catch (err) {
       console.error('Background sync failed', err);
       return false;

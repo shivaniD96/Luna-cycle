@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { MOODS, SYMPTOMS } from '../constants';
 import { format, parseISO } from 'date-fns';
 import { LogPayload, UserData } from '../types';
+import { SyncService } from '../services/syncService';
 
 interface LogModalProps {
   isOpen: boolean;
@@ -11,12 +12,13 @@ interface LogModalProps {
   userData: UserData;
   initialDate?: string;
   cloudEnabled: boolean;
-  onEnableCloud: () => void;
+  onEnableCloud: (token: string) => void;
 }
 
 const LogModal: React.FC<LogModalProps> = ({ isOpen, onClose, onSave, userData, initialDate, cloudEnabled, onEnableCloud }) => {
   const [activeTab, setActiveTab] = useState<'period' | 'symptoms'>('period');
   const [date, setDate] = useState(initialDate || format(new Date(), 'yyyy-MM-dd'));
+  const [isSyncing, setIsSyncing] = useState(false);
   
   // Period States
   const [isPeriodDay, setIsPeriodDay] = useState(false);
@@ -75,6 +77,24 @@ const LogModal: React.FC<LogModalProps> = ({ isOpen, onClose, onSave, userData, 
     
     onSave(payload);
     onClose();
+  };
+
+  const handleCloudPrompt = () => {
+    setIsSyncing(true);
+    SyncService.triggerLogin(
+      (token) => {
+        setIsSyncing(false);
+        onEnableCloud(token);
+      },
+      (err) => {
+        setIsSyncing(false);
+        if (err === 'MISSING_CLIENT_ID') {
+          alert("Cloud Sync Setup Required: Please go to Settings to configure your Google OAuth Client ID first.");
+        } else {
+          alert("Authorization failed. Please check your internet or Google Cloud configuration in Settings.");
+        }
+      }
+    );
   };
 
   return (
@@ -208,11 +228,12 @@ const LogModal: React.FC<LogModalProps> = ({ isOpen, onClose, onSave, userData, 
         <div className="p-8 pt-4 border-t border-rose-50 bg-white">
           {!cloudEnabled && (
             <button 
-              onClick={onEnableCloud}
-              className="w-full mb-3 py-3 bg-indigo-50 text-indigo-600 rounded-2xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 border border-indigo-100 hover:bg-indigo-100 transition-all"
+              onClick={handleCloudPrompt}
+              disabled={isSyncing}
+              className="w-full mb-3 py-3 bg-indigo-50 text-indigo-600 rounded-2xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 border border-indigo-100 hover:bg-indigo-100 transition-all disabled:opacity-50"
             >
               <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" className="w-3 h-3" alt="G" />
-              Secure this data to private cloud
+              {isSyncing ? 'Linking...' : 'Secure this data to private cloud'}
             </button>
           )}
           <button 

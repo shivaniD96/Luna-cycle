@@ -101,8 +101,7 @@ const App: React.FC = () => {
         setIsSyncing(true);
         const success = await SyncService.saveToCloud(userData);
         if (!success) {
-          // If sync fails due to expired token, we might need to prompt for login again
-          console.warn("Background sync failed. Token might be expired.");
+          console.warn("Background sync failed. Data will sync on next refresh or change.");
         }
         setIsSyncing(false);
       }, 1500);
@@ -119,11 +118,12 @@ const App: React.FC = () => {
     SyncService.initSync().then(async () => {
       const cloudData = await SyncService.downloadFromCloud();
       if (cloudData) {
-        // Prompt or merge? For now, favor cloud if it exists
         setUserData(cloudData);
+        alert("Success! Cloud vault connected and synced.");
       } else {
         // No cloud data yet, upload existing local logs
-        await SyncService.saveToCloud(userData);
+        const success = await SyncService.saveToCloud(userData);
+        if (success) alert("Success! Private Cloud Vault created.");
       }
       setIsSyncing(false);
     });
@@ -299,12 +299,7 @@ const App: React.FC = () => {
         userData={userData} 
         initialDate={logModalDate}
         cloudEnabled={cloudEnabled}
-        onEnableCloud={() => {
-          SyncService.triggerLogin(
-            (token) => handleLinkCloud(token),
-            () => alert("Cloud linking failed. Verify your Client ID configuration.")
-          );
-        }}
+        onEnableCloud={handleLinkCloud}
       />
     </div>
   );
