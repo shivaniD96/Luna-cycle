@@ -25,7 +25,6 @@ export const SyncService = {
   async triggerLogin(onSuccess: (token: string) => void, onError: (err?: any) => void) {
     const clientId = this.getClientId();
     if (!clientId) {
-      console.error("CRITICAL: GOOGLE_CLIENT_ID is not set.");
       onError('MISSING_CLIENT_ID');
       return;
     }
@@ -45,7 +44,6 @@ export const SyncService = {
       });
       client.requestAccessToken();
     } catch (e) {
-      console.error("Google Auth initialization failed", e);
       onError(e);
     }
   },
@@ -63,18 +61,16 @@ export const SyncService = {
       const data = await response.json();
       if (data.files && data.files.length > 0) {
         this.fileId = data.files[0].id;
-        console.log("Vault found:", this.fileId);
         return this.fileId;
       }
       return null;
     } catch (err) {
-      console.error('Search for vault failed', err);
       return null;
     }
   },
 
   /**
-   * Saves data to Google Drive. Uses a 2-step process for maximum reliability.
+   * Saves data to Google Drive with guaranteed visibility.
    */
   async saveToCloud(userData: UserData) {
     if (!this.accessToken) return false;
@@ -89,38 +85,44 @@ export const SyncService = {
     return this.uploadDataOnly(userData);
   },
 
-  /**
-   * Step 1: Create the file metadata
-   * Step 2: Patch the content
-   */
   async createAndUpload(userData: UserData) {
     if (!this.accessToken) return false;
 
-    try {
-      // Create empty file first
-      const metadata = {
-        name: BACKUP_FILENAME,
-        mimeType: 'application/json',
-        parents: ['root']
-      };
+    const metadata = {
+      name: BACKUP_FILENAME,
+      mimeType: 'application/json',
+      parents: ['root']
+    };
 
-      const res = await fetch('https://www.googleapis.com/drive/v3/files', {
+    const boundary = '-------LunaVaultBoundary';
+    const delimiter = `\r\n--${boundary}\r\n`;
+    const closeDelimiter = `\r\n--${boundary}--`;
+
+    const body = 
+      delimiter +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) +
+      delimiter +
+      'Content-Type: application/json\r\n\r\n' +
+      JSON.stringify(userData) +
+      closeDelimiter;
+
+    try {
+      const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
-          'Content-Type': 'application/json'
+          'Content-Type': `multipart/related; boundary=${boundary}`
         },
-        body: JSON.stringify(metadata)
+        body: body
       });
-      const created = await res.json();
-      
-      if (created.id) {
-        this.fileId = created.id;
-        return this.uploadDataOnly(userData);
+      const data = await response.json();
+      if (data.id) {
+        this.fileId = data.id;
+        return true;
       }
       return false;
     } catch (err) {
-      console.error('Failed to create vault file', err);
       return false;
     }
   },
@@ -138,7 +140,6 @@ export const SyncService = {
       });
       return res.ok;
     } catch (err) {
-      console.error('Data upload failed', err);
       return false;
     }
   },
@@ -155,7 +156,6 @@ export const SyncService = {
       if (!res.ok) return null;
       return await res.json();
     } catch (err) {
-      console.error('Vault download failed', err);
       return null;
     }
   }
