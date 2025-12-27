@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { AIAdviceRequest, CyclePhase } from "../types";
 
@@ -26,11 +25,12 @@ const FALLBACK_TIPS: Record<CyclePhase, string[]> = {
 };
 
 export const getCycleAdvice = async (req: AIAdviceRequest): Promise<string[]> => {
+  // Always use a fresh instance with direct process.env.API_KEY access
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const systemInstruction = req.role === 'partner' 
-    ? "You are an empathetic support guide helping a partner understand their loved one's hormonal cycle. Provide practical, supportive, and kind advice."
-    : "You are a specialized hormone health and self-care expert. Provide high-quality, encouraging, and medically-grounded (but non-prescriptive) self-care tips.";
+    ? "You are Luna, an empathetic support guide helping a partner understand their loved one's hormonal cycle. Provide 3 short, practical, and kind advice points using supportive language. Focus on empathy and small helpful actions."
+    : "You are Luna, a specialized hormone health and self-care expert. Provide 3 short, high-quality, encouraging self-care tips. Focus on hormonal balance, nutrition, and mental well-being.";
 
   const prompt = `Phase: ${req.phase}. Symptoms: ${req.symptoms.join(', ') || 'none'}. Period in ${req.daysRemaining} days. Provide 3 short tips as a JSON array named "tips".`;
 
@@ -51,14 +51,38 @@ export const getCycleAdvice = async (req: AIAdviceRequest): Promise<string[]> =>
           },
           required: ["tips"]
         },
-        temperature: 0.65,
+        temperature: 0.7,
       },
     });
     
     const data = JSON.parse(response.text || '{"tips": []}');
     return (data.tips && data.tips.length > 0) ? data.tips : FALLBACK_TIPS[req.phase];
   } catch (error) {
-    console.warn("Luna AI: Fallback tips provided due to API delay.");
+    console.warn("Luna AI: Using fallback tips.", error);
     return FALLBACK_TIPS[req.phase];
+  }
+};
+
+/**
+ * Handles generic partner chat queries
+ */
+export const getPartnerChatResponse = async (userMessage: string, data: any): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
+  const prompt = `You are Luna, an empathetic AI guide for a partner. 
+    User's Phase: ${data.phase}. Symptoms: ${data.symptoms.join(', ') || 'None'}. 
+    Period in: ${data.daysUntilNext} days. 
+    Partner's Message: "${userMessage}". 
+    Provide kind, practical, and non-medical support advice using supportive language (e.g., "they may feel", "try offering"). Keep it brief.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: { temperature: 0.8 }
+    });
+    return response.text || "I'm having trouble thinking, but generally, listening and offering comfort are the best things you can do right now.";
+  } catch (err) {
+    return "I'm momentarily offline, but remember: small gestures like bringing them a glass of water or their favorite snack go a long way!";
   }
 };

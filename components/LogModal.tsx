@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { MOODS, SYMPTOMS } from '../constants';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { LogPayload, UserData } from '../types';
 import { SyncService } from '../services/syncService';
 
@@ -240,7 +239,7 @@ const LogModal: React.FC<LogModalProps> = ({ isOpen, onClose, onSave, userData, 
             onClick={handleSave}
             className="w-full bg-rose-400 hover:bg-rose-500 text-white font-bold py-4 rounded-3xl shadow-xl shadow-rose-100 transition-all transform hover:scale-[1.01] active:scale-[0.99] squishy"
           >
-            Save for {format(parseISO(date), 'MMM do')} ✨
+            Save for {format(new Date(date + 'T00:00:00'), 'MMM do')} ✨
           </button>
         </div>
       </div>

@@ -12,10 +12,13 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        // This ensures libraries looking for process.env don't crash the browser
-        'process.env': JSON.stringify(env),
-        'process.env.API_KEY': JSON.stringify(env.API_KEY || ''),
-        'process.env.GOOGLE_CLIENT_ID': JSON.stringify(env.GOOGLE_CLIENT_ID || ''),
+        // Ensuring process.env is defined for browser libraries
+        'process.env': JSON.stringify({
+          ...env,
+          NODE_ENV: mode,
+          API_KEY: env.API_KEY || process.env.API_KEY || '',
+          GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '',
+        }),
       },
       resolve: {
         alias: {

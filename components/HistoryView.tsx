@@ -1,33 +1,41 @@
-
 import React, { useState, useMemo, useRef } from 'react';
 import { 
   format, 
-  startOfMonth, 
   endOfMonth, 
   eachDayOfInterval, 
   isSameMonth, 
   isSameDay, 
   addMonths, 
-  startOfWeek, 
   endOfWeek,
   addDays,
-  startOfDay,
-  setMonth,
-  setYear,
   getYear
 } from 'date-fns';
 import { UserData, CyclePhase } from '../types';
 import { PHASE_COLORS, PHASE_DESCRIPTIONS } from '../constants';
-import { getPhaseForDate, getPeriodStartDates } from '../utils/cycleCalculator';
+import { getPhaseForDate, getPeriodStartDates, isFertileWindow } from '../utils/cycleCalculator';
 
-interface HistoryViewProps {
-  userData: UserData;
-  onDayClick: (date: string) => void;
-}
+// Manual Date utility replacements for missing date-fns members
+const manualStartOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
+const manualStartOfWeek = (d: Date) => {
+  const res = new Date(d);
+  res.setDate(d.getDate() - d.getDay()); // Sunday start
+  return res;
+};
+const manualStartOfDay = (d: Date) => {
+  const res = new Date(d);
+  res.setHours(0, 0, 0, 0);
+  return res;
+};
 
 const PhaseDictionary = () => (
   <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-rose-100 mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
-    <h4 className="text-[10px] font-bold text-rose-300 uppercase tracking-[0.2em] mb-4 px-2">Color Guide: Your 4 Phases</h4>
+    <div className="flex items-center justify-between mb-4 px-2">
+      <h4 className="text-[10px] font-bold text-rose-300 uppercase tracking-[0.2em]">Color Guide</h4>
+      <div className="flex items-center gap-2">
+         <div className="w-2 h-2 rounded-full bg-blue-300"></div>
+         <span className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Fertile Window</span>
+      </div>
+    </div>
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {Object.entries(PHASE_COLORS).map(([phase, color]) => (
         <div key={phase} className="flex flex-col gap-2 p-3 rounded-2xl bg-rose-50/30 border border-rose-50/50">
@@ -55,7 +63,6 @@ const HistoryView: React.FC<HistoryViewProps> = ({ userData, onDayClick }) => {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-12">
       <PhaseDictionary />
 
-      {/* Current Month Focused Card */}
       <div className="bg-white rounded-[3rem] p-8 shadow-xl shadow-rose-100/30 border border-white glass-card relative overflow-hidden">
         <div className="flex items-center justify-between mb-8 relative z-10">
           <div>
@@ -81,7 +88,6 @@ const HistoryView: React.FC<HistoryViewProps> = ({ userData, onDayClick }) => {
         />
       </div>
 
-      {/* Cycle Stats Summary */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-rose-50/50 p-6 rounded-[2.5rem] border border-rose-100 glass-card">
           <p className="text-[10px] text-rose-300 font-bold uppercase tracking-widest mb-1">Status</p>
@@ -120,25 +126,12 @@ const FullRoadmapModal: React.FC<RoadmapModalProps> = ({ userData, onClose, onDa
 
   const monthRange = useMemo(() => {
     const range = [];
-    const start = addMonths(baseDate, -6);
-    for (let i = 0; i < 24; i++) {
+    const start = addMonths(baseDate, -1);
+    for (let i = 0; i < 12; i++) {
       range.push(addMonths(start, i));
     }
     return range;
   }, [baseDate]);
-
-  const years = useMemo(() => {
-    const currentYear = getYear(new Date());
-    return Array.from({ length: 6 }, (_, i) => currentYear - 1 + i);
-  }, []);
-
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-  const handleJump = (year: number, monthIdx: number) => {
-    const newDate = setYear(setMonth(new Date(), monthIdx), year);
-    setBaseDate(newDate);
-    if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  };
 
   return (
     <div className="fixed inset-0 z-[100] bg-[#fff9f8] animate-in fade-in zoom-in-95 duration-300 flex flex-col">
@@ -146,40 +139,9 @@ const FullRoadmapModal: React.FC<RoadmapModalProps> = ({ userData, onClose, onDa
         <div className="flex items-center justify-between mb-6 max-w-5xl mx-auto">
           <div>
             <h2 className="text-4xl font-serif text-rose-900">Roadmap</h2>
-            <p className="text-[10px] text-rose-300 font-bold uppercase tracking-[0.2em] mt-1">Scroll for future predictions</p>
           </div>
           <button onClick={onClose} className="w-14 h-14 bg-white text-rose-400 rounded-[1.5rem] flex items-center justify-center hover:bg-rose-50 transition-all border border-rose-100 shadow-md">
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-          </button>
-        </div>
-
-        <div className="max-w-5xl mx-auto">
-           <PhaseDictionary />
-        </div>
-
-        <div className="flex flex-col md:flex-row items-center gap-4 max-w-5xl mx-auto mt-4">
-          <div className="flex items-center gap-2 bg-white/50 p-1.5 rounded-2xl border border-rose-50">
-            <select 
-              className="bg-transparent border-none text-sm font-bold text-rose-600 outline-none px-2 py-1 cursor-pointer"
-              value={getYear(baseDate)}
-              onChange={(e) => handleJump(parseInt(e.target.value), baseDate.getMonth())}
-            >
-              {years.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-1 items-center gap-1 overflow-x-auto no-scrollbar pb-1">
-            {months.map((m, idx) => (
-              <button
-                key={m}
-                onClick={() => handleJump(getYear(baseDate), idx)}
-                className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shrink-0 ${baseDate.getMonth() === idx ? 'bg-rose-400 text-white shadow-lg' : 'bg-white/50 text-rose-300 hover:text-rose-500 border border-transparent'}`}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-          <button onClick={() => { setBaseDate(new Date()); if (scrollRef.current) scrollRef.current.scrollTop = 0; }} className="px-6 py-2.5 bg-rose-900 text-white rounded-2xl text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-rose-800 transition-colors shadow-lg">
-            Today
           </button>
         </div>
       </header>
@@ -215,7 +177,7 @@ interface MonthGridProps {
 
 const MonthGrid: React.FC<MonthGridProps> = ({ month, userData, onDayClick, avgCycle, avgPeriod, isCompact }) => {
   const calendarDays = useMemo(() => {
-    const start = startOfWeek(startOfMonth(month));
+    const start = manualStartOfWeek(manualStartOfMonth(month));
     const end = endOfWeek(endOfMonth(month));
     return eachDayOfInterval({ start, end });
   }, [month]);
@@ -228,10 +190,21 @@ const MonthGrid: React.FC<MonthGridProps> = ({ month, userData, onDayClick, avgC
     for (let i = 1; i <= 12; i++) {
       const predictedStart = addDays(lastStart, avgCycle * i);
       const predictedEnd = addDays(predictedStart, avgPeriod - 1);
-      const day = startOfDay(date);
+      const day = manualStartOfDay(date);
       if ((isSameDay(day, predictedStart) || day > predictedStart) && (isSameDay(day, predictedEnd) || day < predictedEnd)) {
         return true;
       }
+    }
+    return false;
+  };
+
+  const isFertile = (date: Date) => {
+    if (periodStarts.length === 0) return false;
+    const lastStart = periodStarts[periodStarts.length - 1];
+    // Simple projection for upcoming cycles
+    for (let i = 0; i <= 12; i++) {
+      const currentCycleStart = addDays(lastStart, avgCycle * i);
+      if (isFertileWindow(date, currentCycleStart, avgCycle)) return true;
     }
     return false;
   };
@@ -263,9 +236,10 @@ const MonthGrid: React.FC<MonthGridProps> = ({ month, userData, onDayClick, avgC
           const isToday = isSameDay(day, new Date());
           const isCurrentMonth = isSameMonth(day, month);
           const predicted = isPredictedPeriod(day);
+          const fertile = isFertile(day);
           const phase = getPhaseForDate(day, userData.logs, avgCycle, avgPeriod);
 
-          if (!isCurrentMonth) return <div key={dateStr} className="h-12 md:h-20" />;
+          if (!isCurrentMonth) return <div key={dateStr} className="h-12 md:h-20 opacity-0" />;
 
           return (
             <button
@@ -275,6 +249,7 @@ const MonthGrid: React.FC<MonthGridProps> = ({ month, userData, onDayClick, avgC
                 relative h-12 md:h-20 rounded-2xl md:rounded-[1.5rem] flex flex-col items-center justify-center transition-all group overflow-hidden border-2
                 ${periodEntry ? 'bg-rose-400 text-white border-rose-400 shadow-lg' : predicted ? 'bg-rose-50/20 border-dashed border-rose-300 text-rose-800' : 'bg-rose-50/5 border-transparent text-gray-700 hover:bg-rose-50/20'}
                 ${isToday && !periodEntry ? 'ring-2 ring-rose-300 ring-offset-2' : ''}
+                ${fertile && !periodEntry && !predicted ? 'border-blue-100 bg-blue-50/10' : ''}
                 hover:scale-105 active:scale-95
               `}
             >
@@ -282,6 +257,9 @@ const MonthGrid: React.FC<MonthGridProps> = ({ month, userData, onDayClick, avgC
               <span className={`text-sm md:text-base font-bold z-10 ${periodEntry ? 'text-white' : 'text-gray-700'}`}>
                 {format(day, 'd')}
               </span>
+              {fertile && !periodEntry && !predicted && (
+                <div className="absolute bottom-2 w-1 h-1 bg-blue-300 rounded-full"></div>
+              )}
               {symptomEntry && !periodEntry && (
                 <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-indigo-400 rounded-full"></div>
               )}
