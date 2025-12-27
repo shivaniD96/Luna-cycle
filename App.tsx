@@ -19,6 +19,9 @@ const App: React.FC = () => {
   });
   const [partnerData, setPartnerData] = useState<PartnerData | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [cloudEnabled, setCloudEnabled] = useState(() => {
+    return localStorage.getItem('luna_cloud_enabled') === 'true';
+  });
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
     return localStorage.getItem('luna_notifications_enabled') === 'true';
   });
@@ -59,18 +62,16 @@ const App: React.FC = () => {
   useEffect(() => {
     const initSync = async () => {
       const savedToken = localStorage.getItem('luna_google_token');
-      const cloudEnabled = localStorage.getItem('luna_cloud_enabled') === 'true';
       
       if (savedToken && cloudEnabled) {
         SyncService.setToken(savedToken);
         setIsSyncing(true);
         const cloudData = await SyncService.downloadFromCloud();
         if (cloudData) {
-          // Merge logic: prefer cloud data if it has more logs
           setUserData(prev => {
-            const cloudLogCount = (cloudData.logs?.length || 0) + (cloudData.symptoms?.length || 0);
-            const localLogCount = (prev.logs?.length || 0) + (prev.symptoms?.length || 0);
-            return cloudLogCount >= localLogCount ? cloudData : prev;
+            const cloudCount = (cloudData.logs?.length || 0) + (cloudData.symptoms?.length || 0);
+            const localCount = (prev.logs?.length || 0) + (prev.symptoms?.length || 0);
+            return cloudCount >= localCount ? cloudData : prev;
           });
         }
         setIsSyncing(false);
@@ -91,12 +92,12 @@ const App: React.FC = () => {
         }
       }
     }
-  }, []);
+  }, [cloudEnabled]);
 
   // Handle Automatic Silent Sync on Every Change
   useEffect(() => {
     localStorage.setItem('luna_cycle_data', JSON.stringify(userData));
-    if (SyncService.accessToken && localStorage.getItem('luna_cloud_enabled') === 'true') {
+    if (SyncService.accessToken && cloudEnabled) {
       const debounceTimer = setTimeout(async () => {
         setIsSyncing(true);
         await SyncService.saveToCloud(userData);
@@ -104,7 +105,24 @@ const App: React.FC = () => {
       }, 1500);
       return () => clearTimeout(debounceTimer);
     }
-  }, [userData]);
+  }, [userData, cloudEnabled]);
+
+  const handleLinkCloud = (token: string) => {
+    SyncService.setToken(token);
+    setCloudEnabled(true);
+    localStorage.setItem('luna_cloud_enabled', 'true');
+    setIsSyncing(true);
+    SyncService.initSync().then(async () => {
+      const cloudData = await SyncService.downloadFromCloud();
+      if (cloudData) {
+        setUserData(cloudData);
+      } else {
+        // If no cloud data, upload current local data immediately
+        await SyncService.saveToCloud(userData);
+      }
+      setIsSyncing(false);
+    });
+  };
 
   const avgCycle = useMemo(() => getCycleSummary(userData.logs, userData.settings.averageCycleLength), [userData.logs, userData.settings.averageCycleLength]);
   const cycleDay = useMemo(() => getCurrentCycleDay(userData.logs), [userData.logs]);
@@ -116,45 +134,6 @@ const App: React.FC = () => {
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     return userData.symptoms.find(s => s.date === todayStr)?.physicalSymptoms || [];
   }, [userData.symptoms]);
-
-  // Local Notification Engine
-  useEffect(() => {
-    if (notificationsEnabled && ('Notification' in window) && Notification.permission === 'granted') {
-      const lastCheck = localStorage.getItem('luna_last_notification_check');
-      const today = format(new Date(), 'yyyy-MM-dd');
-
-      if (lastCheck !== today) {
-        if (daysUntilNext === 1) {
-          new Notification("Luna Cycle Reminder", {
-            body: "Your period is expected tomorrow. Take care of yourself! 🌙",
-            icon: "https://img.icons8.com/fluency/192/000000/moon.png"
-          });
-        }
-        if (daysUntilNext === 14) {
-          new Notification("Luna Cycle Reminder", {
-            body: "You are likely approaching ovulation. Energy peak expected! ✨",
-            icon: "https://img.icons8.com/fluency/192/000000/moon.png"
-          });
-        }
-        localStorage.setItem('luna_last_notification_check', today);
-      }
-    }
-  }, [notificationsEnabled, daysUntilNext]);
-
-  const handleToggleNotifications = async () => {
-    if (notificationsEnabled) {
-      setNotificationsEnabled(false);
-      localStorage.setItem('luna_notifications_enabled', 'false');
-    } else {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        setNotificationsEnabled(true);
-        localStorage.setItem('luna_notifications_enabled', 'true');
-      } else {
-        alert("Enable notifications in browser settings.");
-      }
-    }
-  };
 
   const handleSaveLog = (payload: LogPayload) => {
     setUserData(prev => {
@@ -194,18 +173,6 @@ const App: React.FC = () => {
     });
   };
 
-  const generateShareLink = () => {
-    const shareObj: PartnerData = {
-      phase: currentPhase,
-      daysUntilNext,
-      symptoms: currentDaySymptoms,
-      avgCycle
-    };
-    const url = `${window.location.origin}${window.location.pathname}#/partner-view?data=${btoa(JSON.stringify(shareObj))}`;
-    navigator.clipboard.writeText(url);
-    alert('Partner link copied!');
-  };
-
   if (partnerData) {
     return <PartnerPortal data={partnerData} />;
   }
@@ -214,14 +181,7 @@ const App: React.FC = () => {
     return (
       <AuthScreen 
         onUnlock={(token) => {
-          if (token) {
-            SyncService.setToken(token);
-            localStorage.setItem('luna_cloud_enabled', 'true');
-            SyncService.initSync().then(async () => {
-              const cloudData = await SyncService.downloadFromCloud();
-              if (cloudData) setUserData(cloudData);
-            });
-          }
+          if (token) handleLinkCloud(token);
           localStorage.setItem('luna_unlocked', 'true');
           setIsUnlocked(true);
         }} 
@@ -247,28 +207,23 @@ const App: React.FC = () => {
               <p className="text-[10px] text-rose-300 font-bold uppercase tracking-[0.2em] mt-1">Private Companion</p>
             </div>
           </div>
-          <div className="flex gap-2">
-             <button onClick={generateShareLink} title="Share" className="p-4 bg-white/70 text-rose-400 rounded-2xl border border-white hover:shadow-md transition-all squishy">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/></svg>
-              </button>
-              <button 
-                onClick={() => {
-                  localStorage.removeItem('luna_unlocked');
-                  setIsUnlocked(false);
-                }} 
-                className="p-4 bg-rose-50/50 text-rose-400 rounded-2xl border border-rose-100 hover:text-rose-600 transition-all squishy"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              </button>
-          </div>
+          <button 
+            onClick={() => {
+              localStorage.removeItem('luna_unlocked');
+              setIsUnlocked(false);
+            }} 
+            className="p-4 bg-rose-50/50 text-rose-400 rounded-2xl border border-rose-100 hover:text-rose-600 transition-all squishy"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </button>
         </div>
 
         <div className="flex gap-2 flex-wrap">
           <div 
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[9px] font-bold uppercase tracking-wider ${SyncService.accessToken ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`} 
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[9px] font-bold uppercase tracking-wider ${SyncService.accessToken && cloudEnabled ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`} 
           >
-            <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-indigo-400 animate-bounce' : SyncService.accessToken ? 'bg-emerald-400' : 'bg-slate-300'}`}></div>
-            {isSyncing ? 'Auto-Syncing...' : SyncService.accessToken ? 'Cloud Secure' : 'Local Only'}
+            <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-indigo-400 animate-bounce' : (SyncService.accessToken && cloudEnabled) ? 'bg-emerald-400' : 'bg-slate-300'}`}></div>
+            {isSyncing ? 'Syncing...' : (SyncService.accessToken && cloudEnabled) ? 'Cloud Secure' : 'Offline Only'}
           </div>
         </div>
       </header>
@@ -310,11 +265,10 @@ const App: React.FC = () => {
                 onClick={() => { setLogModalDate(format(new Date(), 'yyyy-MM-dd')); setIsLogModalOpen(true); }}
                 className={`w-full max-w-xs mx-auto py-5 rounded-[2rem] text-white font-bold shadow-2xl transition-all flex items-center justify-center gap-3 squishy text-lg ${PHASE_COLORS[currentPhase] || 'bg-rose-400'}`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121(1 1 3 3L12 15l-4 1 1-4Z"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z"/></svg>
                 Log Today
               </button>
             </section>
-
             <AdvicePanel phase={currentPhase} daysRemaining={daysUntilNext} symptoms={currentDaySymptoms} />
           </div>
         )}
@@ -323,15 +277,36 @@ const App: React.FC = () => {
         {activeTab === 'settings' && (
           <SettingsView 
             userData={userData} 
+            cloudEnabled={cloudEnabled}
             onUpdateLock={handleUpdateLock}
             onUpdateSettings={handleUpdateSettings}
+            onLinkCloud={handleLinkCloud}
             notificationsEnabled={notificationsEnabled}
-            onToggleNotifications={handleToggleNotifications}
+            onToggleNotifications={() => setNotificationsEnabled(!notificationsEnabled)}
           />
         )}
       </main>
 
-      <LogModal isOpen={isLogModalOpen} onClose={() => setIsLogModalOpen(false)} onSave={handleSaveLog} userData={userData} initialDate={logModalDate} />
+      <LogModal 
+        isOpen={isLogModalOpen} 
+        onClose={() => setIsLogModalOpen(false)} 
+        onSave={handleSaveLog} 
+        userData={userData} 
+        initialDate={logModalDate}
+        cloudEnabled={cloudEnabled}
+        onEnableCloud={() => {
+          // Trigger the Google Login flow from Modal
+          // This will be handled by the AuthScreen or a shared utility
+          const client = (window as any).google.accounts.oauth2.initTokenClient({
+            client_id: '782298926978-f7b8jbe976159j8rph87un87r7671077.apps.googleusercontent.com',
+            scope: 'https://www.googleapis.com/auth/drive.appdata email profile',
+            callback: (response: any) => {
+              if (response.access_token) handleLinkCloud(response.access_token);
+            },
+          });
+          client.requestAccessToken();
+        }}
+      />
     </div>
   );
 };

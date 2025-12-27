@@ -5,17 +5,35 @@ import { SyncService } from '../services/syncService';
 
 interface SettingsViewProps {
   userData: UserData;
+  cloudEnabled: boolean;
   onUpdateLock: (method: 'pin' | 'google' | undefined, value?: string) => void;
   onUpdateSettings: (settings: Partial<UserData['settings']>) => void;
+  onLinkCloud: (token: string) => void;
   notificationsEnabled: boolean;
   onToggleNotifications: () => void;
 }
 
 const SettingsView: React.FC<SettingsViewProps> = ({ 
-  userData, onUpdateLock, onUpdateSettings,
+  userData, cloudEnabled, onUpdateLock, onUpdateSettings, onLinkCloud,
   notificationsEnabled, onToggleNotifications
 }) => {
   const [pinInput, setPinInput] = useState('');
+
+  const handleGoogleAuth = () => {
+    try {
+      // @ts-ignore
+      const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: '782298926978-f7b8jbe976159j8rph87un87r7671077.apps.googleusercontent.com',
+        scope: 'https://www.googleapis.com/auth/drive.appdata email profile',
+        callback: (response: any) => {
+          if (response.access_token) onLinkCloud(response.access_token);
+        },
+      });
+      client.requestAccessToken();
+    } catch (e) {
+      alert("Auth failed. Check connection.");
+    }
+  };
 
   const handleSetPin = () => {
     if (pinInput.length === 4) {
@@ -31,22 +49,33 @@ const SettingsView: React.FC<SettingsViewProps> = ({
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       
       {/* CLOUD INFO */}
-      <section className="bg-indigo-600 rounded-[2.5rem] p-8 shadow-xl shadow-indigo-100/50 text-white relative overflow-hidden">
-        <div className="absolute top-[-20px] right-[-20px] w-32 h-32 bg-indigo-500 rounded-full opacity-50"></div>
+      <section className={`rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden transition-all duration-500 ${cloudEnabled ? 'bg-indigo-600 shadow-indigo-100/50' : 'bg-white border-2 border-dashed border-rose-200 shadow-rose-50'}`}>
+        <div className="absolute top-[-20px] right-[-20px] w-32 h-32 bg-white/10 rounded-full"></div>
         <div className="relative z-10">
-          <h3 className="text-xl font-bold mb-2 flex items-center gap-2">
-             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
-             Luna Private Cloud
+          <h3 className={`text-xl font-bold mb-2 flex items-center gap-2 ${cloudEnabled ? 'text-white' : 'text-gray-800'}`}>
+             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={cloudEnabled ? 'text-white' : 'text-rose-400'}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
+             {cloudEnabled ? 'Luna Private Cloud' : 'Enable Private Cloud'}
           </h3>
-          <p className="text-xs text-indigo-100 leading-relaxed mb-4">
-            Luna uses your own Google Drive to silently sync data. It's invisible, automatic, and 100% private to you.
+          <p className={`text-xs leading-relaxed mb-6 ${cloudEnabled ? 'text-indigo-100' : 'text-gray-500'}`}>
+            {cloudEnabled 
+              ? "Luna is automatically backing up every change to your hidden Google Drive vault." 
+              : "Sync your data silently across devices using your own Google account. 100% private."}
           </p>
-          <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl border border-white/20">
-             <div className={`w-2 h-2 rounded-full ${SyncService.accessToken ? 'bg-emerald-400' : 'bg-rose-400 animate-pulse'}`}></div>
-             <span className="text-[10px] font-bold uppercase tracking-widest">
-               {SyncService.accessToken ? 'Active & Automatic' : 'Log in to enable sync'}
-             </span>
-          </div>
+          
+          {cloudEnabled ? (
+            <div className="flex items-center gap-2 bg-white/10 px-4 py-3 rounded-2xl border border-white/20">
+               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+               <span className="text-[10px] text-white font-bold uppercase tracking-widest">Active & Automatic</span>
+            </div>
+          ) : (
+            <button 
+              onClick={handleGoogleAuth}
+              className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg flex items-center justify-center gap-3 squishy transition-all hover:bg-indigo-700"
+            >
+              <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" className="w-5 h-5 brightness-0 invert" alt="G" />
+              Link Google Drive
+            </button>
+          )}
         </div>
       </section>
 
@@ -71,9 +100,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* CYCLE BASICS */}
       <section className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-rose-100">
-        <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2 text-rose-500">
-          Cycle Defaults
-        </h3>
+        <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2 text-rose-500">Cycle Defaults</h3>
         <div className="space-y-6">
           <div>
             <label className="block text-[10px] font-bold text-rose-300 uppercase tracking-widest mb-2">Cycle Length</label>
@@ -98,14 +125,12 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* LOCK */}
       <section className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-rose-100">
-        <h3 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
-          Privacy Lock
-        </h3>
+        <h3 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">Privacy Lock</h3>
         <div className="bg-rose-50/50 p-6 rounded-3xl border border-rose-100 mt-4">
           {userData.settings.lockMethod === 'pin' ? (
             <div className="flex items-center justify-between">
               <p className="font-bold text-gray-800">PIN Secure ✓</p>
-              <button onClick={() => onUpdateLock(undefined)} className="text-sm font-bold text-rose-50">Disable</button>
+              <button onClick={() => onUpdateLock(undefined)} className="text-sm font-bold text-rose-500">Disable</button>
             </div>
           ) : (
             <div className="flex gap-2">

@@ -10,9 +10,11 @@ interface LogModalProps {
   onSave: (payload: LogPayload) => void;
   userData: UserData;
   initialDate?: string;
+  cloudEnabled: boolean;
+  onEnableCloud: () => void;
 }
 
-const LogModal: React.FC<LogModalProps> = ({ isOpen, onClose, onSave, userData, initialDate }) => {
+const LogModal: React.FC<LogModalProps> = ({ isOpen, onClose, onSave, userData, initialDate, cloudEnabled, onEnableCloud }) => {
   const [activeTab, setActiveTab] = useState<'period' | 'symptoms'>('period');
   const [date, setDate] = useState(initialDate || format(new Date(), 'yyyy-MM-dd'));
   
@@ -153,7 +155,7 @@ const LogModal: React.FC<LogModalProps> = ({ isOpen, onClose, onSave, userData, 
             ) : (
               <div className="space-y-8 animate-in slide-in-from-left-4 duration-300">
                 <div>
-                  <label className="block text-[10px] font-bold text-rose-300 uppercase tracking-[0.2em] mb-4 px-1">Moods (Multi-select)</label>
+                  <label className="block text-[10px] font-bold text-rose-300 uppercase tracking-[0.2em] mb-4 px-1">Moods</label>
                   <div className="grid grid-cols-3 gap-3">
                     {MOODS.map((mood) => (
                       <button
@@ -196,19 +198,6 @@ const LogModal: React.FC<LogModalProps> = ({ isOpen, onClose, onSave, userData, 
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
                     </button>
                   </form>
-
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {selectedSymptoms.filter(s => !SYMPTOMS.includes(s)).map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => toggleSymptom(s)}
-                        className="px-4 py-2 rounded-xl bg-indigo-500 text-white text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 animate-in zoom-in duration-200 hover:bg-indigo-600"
-                      >
-                        {s}
-                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                      </button>
-                    ))}
-                  </div>
                 </div>
               </div>
             )}
@@ -217,6 +206,15 @@ const LogModal: React.FC<LogModalProps> = ({ isOpen, onClose, onSave, userData, 
 
         {/* Footer */}
         <div className="p-8 pt-4 border-t border-rose-50 bg-white">
+          {!cloudEnabled && (
+            <button 
+              onClick={onEnableCloud}
+              className="w-full mb-3 py-3 bg-indigo-50 text-indigo-600 rounded-2xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 border border-indigo-100 hover:bg-indigo-100 transition-all"
+            >
+              <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" className="w-3 h-3" alt="G" />
+              Secure this data to private cloud
+            </button>
+          )}
           <button 
             onClick={handleSave}
             className="w-full bg-rose-400 hover:bg-rose-500 text-white font-bold py-4 rounded-3xl shadow-xl shadow-rose-100 transition-all transform hover:scale-[1.01] active:scale-[0.99] squishy"
