@@ -24,7 +24,6 @@ export const SyncService = {
 
   async triggerLogin(onSuccess: (token: string) => void, onError: (err?: any) => void) {
     const clientId = this.getClientId();
-    
     if (!clientId) {
       console.error("CRITICAL: GOOGLE_CLIENT_ID is not set.");
       onError('MISSING_CLIENT_ID');
@@ -56,9 +55,7 @@ export const SyncService = {
    */
   async findVaultFile() {
     if (!this.accessToken) return null;
-
     try {
-      // spaces=drive ensures we check the visible user storage, not hidden folders
       const response = await fetch(
         `https://www.googleapis.com/drive/v3/files?q=name='${BACKUP_FILENAME}' and trashed=false&spaces=drive&fields=files(id, name)`,
         { headers: { Authorization: `Bearer ${this.accessToken}` } }
@@ -77,21 +74,59 @@ export const SyncService = {
   },
 
   /**
-   * Saves data to Google Drive using correctly formatted multipart/related request.
+   * Saves data to Google Drive. Uses a 2-step process for maximum reliability.
    */
   async saveToCloud(userData: UserData) {
     if (!this.accessToken) return false;
 
-    // Verify fileId exists or try to find it
     if (!this.fileId) {
       const found = await this.findVaultFile();
       if (!found) {
-        // Create new file
-        return this.createVaultFile(userData);
+        return this.createAndUpload(userData);
       }
     }
 
-    // Update existing file
+    return this.uploadDataOnly(userData);
+  },
+
+  /**
+   * Step 1: Create the file metadata
+   * Step 2: Patch the content
+   */
+  async createAndUpload(userData: UserData) {
+    if (!this.accessToken) return false;
+
+    try {
+      // Create empty file first
+      const metadata = {
+        name: BACKUP_FILENAME,
+        mimeType: 'application/json',
+        parents: ['root']
+      };
+
+      const res = await fetch('https://www.googleapis.com/drive/v3/files', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(metadata)
+      });
+      const created = await res.json();
+      
+      if (created.id) {
+        this.fileId = created.id;
+        return this.uploadDataOnly(userData);
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to create vault file', err);
+      return false;
+    }
+  },
+
+  async uploadDataOnly(userData: UserData) {
+    if (!this.accessToken || !this.fileId) return false;
     try {
       const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${this.fileId}?uploadType=media`, {
         method: 'PATCH',
@@ -103,77 +138,21 @@ export const SyncService = {
       });
       return res.ok;
     } catch (err) {
-      console.error('Sync update failed', err);
-      return false;
-    }
-  },
-
-  /**
-   * Creates a new vault file in Drive with proper metadata and visible placement.
-   */
-  async createVaultFile(userData: UserData) {
-    if (!this.accessToken) return false;
-
-    const metadata = {
-      name: BACKUP_FILENAME,
-      mimeType: 'application/json',
-      description: 'LunaCycle Private Cycle Vault',
-      parents: ['root'] // Force visibility in the root folder
-    };
-
-    const boundary = '-------LunaVaultBoundary';
-    const delimiter = `\r\n--${boundary}\r\n`;
-    const closeDelimiter = `\r\n--${boundary}--`;
-
-    const body = 
-      delimiter +
-      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-      JSON.stringify(metadata) +
-      delimiter +
-      'Content-Type: application/json\r\n\r\n' +
-      JSON.stringify(userData) +
-      closeDelimiter;
-
-    try {
-      const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
-          'Content-Type': `multipart/related; boundary=${boundary}`
-        },
-        body: body
-      });
-      const data = await response.json();
-      if (data.id) {
-        this.fileId = data.id;
-        console.log("Vault created successfully:", data.id);
-        return true;
-      }
-      return false;
-    } catch (err) {
-      console.error('Sync creation failed', err);
+      console.error('Data upload failed', err);
       return false;
     }
   },
 
   async downloadFromCloud(): Promise<UserData | null> {
     if (!this.accessToken) return null;
-    
-    // Always search if we don't have an ID yet
-    if (!this.fileId) {
-      await this.findVaultFile();
-    }
-    
+    if (!this.fileId) await this.findVaultFile();
     if (!this.fileId) return null;
 
     try {
       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${this.fileId}?alt=media`, {
         headers: { Authorization: `Bearer ${this.accessToken}` }
       });
-      if (!res.ok) {
-        console.error("Vault download response error:", res.status);
-        return null;
-      }
+      if (!res.ok) return null;
       return await res.json();
     } catch (err) {
       console.error('Vault download failed', err);
