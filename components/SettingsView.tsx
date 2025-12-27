@@ -9,10 +9,13 @@ interface SettingsViewProps {
   onEnableSync: () => void;
   onUpdateLock: (method: 'pin' | 'google' | undefined, value?: string) => void;
   onUpdateSettings: (settings: Partial<UserData['settings']>) => void;
+  notificationsEnabled: boolean;
+  onToggleNotifications: () => void;
 }
 
 const SettingsView: React.FC<SettingsViewProps> = ({ 
-  userData, onImport, isSyncActive, onEnableSync, onUpdateLock, onUpdateSettings 
+  userData, onImport, isSyncActive, onEnableSync, onUpdateLock, onUpdateSettings,
+  notificationsEnabled, onToggleNotifications
 }) => {
   const [pinInput, setPinInput] = useState('');
 
@@ -28,6 +31,43 @@ const SettingsView: React.FC<SettingsViewProps> = ({
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
+      
+      {/* PWA TIP */}
+      <section className="bg-indigo-600 rounded-[2.5rem] p-8 shadow-xl shadow-indigo-100/50 text-white relative overflow-hidden">
+        <div className="absolute top-[-20px] right-[-20px] w-32 h-32 bg-indigo-500 rounded-full opacity-50"></div>
+        <div className="relative z-10">
+          <h3 className="text-xl font-bold mb-2">Use Luna like an App</h3>
+          <p className="text-xs text-indigo-100 leading-relaxed mb-4">Add LunaCycle to your home screen for a full-screen, private experience without using the App Store.</p>
+          <div className="flex gap-4">
+            <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl border border-white/20">
+               <span className="text-xs font-bold uppercase tracking-widest">Share → Add to Home</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* NOTIFICATIONS */}
+      <section className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-rose-100">
+        <h3 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          Smart Reminders
+        </h3>
+        <p className="text-xs text-gray-400 mb-6 px-1">Get alerts for upcoming periods and ovulation directly on your device.</p>
+        
+        <div className="flex items-center justify-between p-6 bg-indigo-50/30 rounded-3xl border border-indigo-50 transition-colors">
+          <div>
+            <p className="font-bold text-gray-800 text-sm">Cycle Notifications</p>
+            <p className="text-[10px] text-indigo-300 uppercase font-bold tracking-widest mt-0.5">{notificationsEnabled ? 'Alerts are ON' : 'Currently OFF'}</p>
+          </div>
+          <button 
+            onClick={onToggleNotifications}
+            className={`w-12 h-7 rounded-full transition-all relative duration-300 ${notificationsEnabled ? 'bg-indigo-500' : 'bg-gray-200'}`}
+          >
+            <div className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 ease-in-out ${notificationsEnabled ? 'translate-x-5' : 'translate-x-0'}`}></div>
+          </button>
+        </div>
+      </section>
+
       {/* CYCLE SETTINGS */}
       <section className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-rose-100">
         <h3 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">

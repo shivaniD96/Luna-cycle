@@ -1,9 +1,18 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>LunaCycle - Private Period Tracker</title>
+    
+    <!-- PWA & Mobile Meta -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#fff9f8">
+    <link rel="manifest" href="./manifest.json">
+    <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/192/000000/moon.png">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,6 +23,7 @@
             font-family: 'Quicksand', sans-serif;
             background-color: #fff9f8;
             overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
         }
         .font-serif {
             font-family: 'Playfair+Display', serif;
@@ -39,9 +49,6 @@
             background: #ffe4e1;
             border-radius: 10px;
         }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #ffd1d1;
-        }
         .squishy {
             transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
@@ -52,6 +59,12 @@
             background: rgba(255, 255, 255, 0.7);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        /* Mobile-first bottom nav fix */
+        @supports (padding: env(safe-area-inset-bottom)) {
+            .pb-safe {
+                padding-bottom: env(safe-area-inset-bottom);
+            }
         }
     </style>
 <script type="importmap">

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { format, differenceInDays } from 'date-fns';
+import { format, differenceInDays, isSameDay } from 'date-fns';
 import { UserData, PartnerData, LogPayload } from './types';
 import { calculateNextPeriod, getCurrentCycleDay, determinePhase, getCycleSummary } from './utils/cycleCalculator.ts';
 import { PHASE_COLORS, PHASE_ICONS, PHASE_DESCRIPTIONS } from './constants.tsx';
@@ -16,6 +16,9 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'settings'>('overview');
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [partnerData, setPartnerData] = useState<PartnerData | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
+    return localStorage.getItem('luna_notifications_enabled') === 'true';
+  });
   
   const [userData, setUserData] = useState<UserData>(() => {
     const saved = localStorage.getItem('luna_cycle_data');
@@ -31,8 +34,7 @@ const App: React.FC = () => {
     };
 
     try {
-      const parsed = JSON.parse(saved);
-      return parsed;
+      return JSON.parse(saved);
     } catch (e) {
       return {
         logs: [],
@@ -73,7 +75,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     localStorage.setItem('luna_cycle_data', JSON.stringify(userData));
-    
     if (isSyncActive) {
       const debounceTimer = setTimeout(async () => {
         await SyncService.saveToFile(userData);
@@ -82,12 +83,53 @@ const App: React.FC = () => {
     }
   }, [userData, isSyncActive]);
 
-  const cycleDay = useMemo(() => getCurrentCycleDay(userData.logs), [userData.logs]);
   const avgCycle = useMemo(() => getCycleSummary(userData.logs, userData.settings.averageCycleLength), [userData.logs, userData.settings.averageCycleLength]);
+  const cycleDay = useMemo(() => getCurrentCycleDay(userData.logs), [userData.logs]);
   const currentPhase = useMemo(() => determinePhase(cycleDay, avgCycle, userData.settings.averagePeriodLength), [cycleDay, avgCycle, userData.settings.averagePeriodLength]);
   const nextPeriod = useMemo(() => calculateNextPeriod(userData.logs, avgCycle), [userData.logs, avgCycle]);
-  
   const daysUntilNext = nextPeriod ? differenceInDays(nextPeriod, new Date()) : 28;
+
+  // Local Notification Engine
+  useEffect(() => {
+    if (notificationsEnabled && ('Notification' in window) && Notification.permission === 'granted') {
+      const lastCheck = localStorage.getItem('luna_last_notification_check');
+      const today = format(new Date(), 'yyyy-MM-dd');
+
+      if (lastCheck !== today) {
+        // Check for Period
+        if (daysUntilNext === 1) {
+          new Notification("Luna Cycle Reminder", {
+            body: "Your period is expected tomorrow. Take care of yourself! 🌙",
+            icon: "https://img.icons8.com/fluency/192/000000/moon.png"
+          });
+        }
+        // Check for Ovulation (Approx 14 days before period)
+        if (daysUntilNext === 14) {
+          new Notification("Luna Cycle Reminder", {
+            body: "You are likely approaching ovulation. Energy peak expected! ✨",
+            icon: "https://img.icons8.com/fluency/192/000000/moon.png"
+          });
+        }
+        localStorage.setItem('luna_last_notification_check', today);
+      }
+    }
+  }, [notificationsEnabled, daysUntilNext]);
+
+  const handleToggleNotifications = async () => {
+    if (notificationsEnabled) {
+      setNotificationsEnabled(false);
+      localStorage.setItem('luna_notifications_enabled', 'false');
+    } else {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        setNotificationsEnabled(true);
+        localStorage.setItem('luna_notifications_enabled', 'true');
+        new Notification("Luna Cycle", { body: "Notifications enabled! We'll alert you for upcoming cycles. 🌙" });
+      } else {
+        alert("Please enable notification permissions in your browser settings to use this feature.");
+      }
+    }
+  };
 
   const currentDaySymptoms = useMemo(() => {
     const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -194,6 +236,12 @@ const App: React.FC = () => {
             <div className={`w-1.5 h-1.5 rounded-full ${isSyncActive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></div>
             {isSyncActive ? 'Synced' : 'Sync Disconnected'}
           </div>
+          {notificationsEnabled && (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-[9px] font-bold uppercase tracking-wider">
+               <div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>
+               Alerts Active
+            </div>
+          )}
         </div>
       </header>
 
@@ -231,7 +279,6 @@ const App: React.FC = () => {
                 <p className="text-gray-500 max-w-md mx-auto leading-relaxed text-sm font-medium">{PHASE_DESCRIPTIONS[currentPhase]}</p>
               </div>
 
-              {/* LOG BUTTON (STAYED PERSISTENT) */}
               <button 
                 onClick={() => { setLogModalDate(format(new Date(), 'yyyy-MM-dd')); setIsLogModalOpen(true); }}
                 className={`w-full max-w-xs mx-auto py-5 rounded-[2rem] text-white font-bold shadow-2xl transition-all flex items-center justify-center gap-3 squishy text-lg ${PHASE_COLORS[currentPhase] || 'bg-rose-400'}`}
@@ -259,6 +306,8 @@ const App: React.FC = () => {
             onEnableSync={handleEnableSync}
             onUpdateLock={handleUpdateLock}
             onUpdateSettings={handleUpdateSettings}
+            notificationsEnabled={notificationsEnabled}
+            onToggleNotifications={handleToggleNotifications}
           />
         )}
       </main>
