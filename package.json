@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Privacy-first period tracker with private cloud sync.",
   "scripts": {
-    "build": "esbuild index.tsx --bundle --outfile=bundle.js --format=esm --jsx=automatic --minify --define:process.env.API_KEY=\"$API_KEY\" --define:process.env.GOOGLE_CLIENT_ID=\"$GOOGLE_CLIENT_ID\" --external:react --external:react-dom --external:date-fns --external:@google/genai && sed -i 's/index.tsx/bundle.js/g' index.html"
+    "build": "esbuild index.tsx --bundle --outfile=bundle.js --format=esm --jsx=automatic --minify --define:process.env.API_KEY='\"$API_KEY\"' --define:process.env.GOOGLE_CLIENT_ID='\"$GOOGLE_CLIENT_ID\"' --external:react --external:react-dom --external:date-fns --external:@google/genai && sed -i 's/index.tsx/bundle.js/g' index.html"
   },
   "devDependencies": {
     "esbuild": "^0.24.0"
