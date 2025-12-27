@@ -13,9 +13,11 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        // Ensure process.env is available for libraries and custom code
+        // Specifically define the required environment variables for the app
+        'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY || ''),
+        'process.env.GOOGLE_CLIENT_ID': JSON.stringify(env.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || ''),
+        // Shim the process.env object to prevent crashes in libraries that check it
         'process.env': JSON.stringify({
-          ...env,
           API_KEY: env.API_KEY || process.env.API_KEY || '',
           GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || ''
         })
