@@ -1,9 +1,5 @@
 import { UserData } from '../types';
 
-/**
- * Luna Private Cloud Engine
- * Switched to drive.file scope so users can see their vault file.
- */
 const BACKUP_FILENAME = 'LunaCycle_Vault.json';
 
 export const SyncService = {
@@ -11,7 +7,7 @@ export const SyncService = {
   fileId: null as string | null,
 
   getClientId() {
-    return process.env.GOOGLE_CLIENT_ID || '';
+    return (process.env as any).GOOGLE_CLIENT_ID || '';
   },
 
   setToken(token: string) {
@@ -39,7 +35,6 @@ export const SyncService = {
       // @ts-ignore
       const client = window.google.accounts.oauth2.initTokenClient({
         client_id: clientId,
-        // Using drive.file so the file is visible to the user in their Drive
         scope: 'https://www.googleapis.com/auth/drive.file email profile',
         callback: (response: any) => {
           if (response.access_token) {
@@ -57,66 +52,45 @@ export const SyncService = {
   },
 
   /**
-   * Search for the vault file in the user's Google Drive.
+   * Searches for the existing vault file.
    */
-  async initSync() {
-    if (!this.accessToken) return false;
+  async findVaultFile() {
+    if (!this.accessToken) return null;
 
     try {
       const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=name='${BACKUP_FILENAME}' and trashed=false`,
+        `https://www.googleapis.com/drive/v3/files?q=name='${BACKUP_FILENAME}' and trashed=false&fields=files(id, name)`,
         { headers: { Authorization: `Bearer ${this.accessToken}` } }
       );
       const data = await response.json();
-
       if (data.files && data.files.length > 0) {
         this.fileId = data.files[0].id;
-        return true;
+        return this.fileId;
       }
-      return false;
+      return null;
     } catch (err) {
-      console.error('Failed to init sync', err);
-      return false;
+      console.error('Search for vault failed', err);
+      return null;
     }
   },
 
   /**
-   * Saves data to the cloud.
-   * INCLUDES PROTECTION: Will not save if local data is suspicious (empty) unless specifically forced.
+   * Saves data to Google Drive using correctly formatted multipart/related request.
    */
   async saveToCloud(userData: UserData) {
     if (!this.accessToken) return false;
 
-    // Safety: Don't upload a completely empty vault if we don't have a fileId yet
-    // because we might still be searching for an existing one.
-    const hasData = userData.logs.length > 0 || userData.symptoms.length > 0;
-    
-    try {
-      if (!this.fileId) {
-        const found = await this.initSync();
-        if (!found) {
-          if (!hasData) return false; // Don't create an empty file if none exists
-
-          const metadata = {
-            name: BACKUP_FILENAME,
-            description: 'LunaCycle Private Data Vault'
-          };
-          const form = new FormData();
-          form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-          form.append('file', new Blob([JSON.stringify(userData)], { type: 'application/json' }));
-
-          const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${this.accessToken}` },
-            body: form
-          });
-          const created = await res.json();
-          this.fileId = created.id;
-          return true;
-        }
+    // Verify fileId exists or try to find it
+    if (!this.fileId) {
+      const found = await this.findVaultFile();
+      if (!found) {
+        // Create new file
+        return this.createVaultFile(userData);
       }
+    }
 
-      // Update existing
+    // Update existing file
+    try {
       const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${this.fileId}?uploadType=media`, {
         method: 'PATCH',
         headers: {
@@ -127,14 +101,65 @@ export const SyncService = {
       });
       return res.ok;
     } catch (err) {
-      console.error('Background sync failed', err);
+      console.error('Sync update failed', err);
+      return false;
+    }
+  },
+
+  /**
+   * Creates a new vault file in Drive with proper metadata.
+   */
+  async createVaultFile(userData: UserData) {
+    if (!this.accessToken) return false;
+
+    const metadata = {
+      name: BACKUP_FILENAME,
+      mimeType: 'application/json',
+      description: 'LunaCycle Encrypted-at-Rest Cycle Vault'
+    };
+
+    const boundary = 'LunaBoundary';
+    const delimiter = `\r\n--${boundary}\r\n`;
+    const closeDelimiter = `\r\n--${boundary}--`;
+
+    const body = 
+      delimiter +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) +
+      delimiter +
+      'Content-Type: application/json\r\n\r\n' +
+      JSON.stringify(userData) +
+      closeDelimiter;
+
+    try {
+      const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': `multipart/related; boundary=${boundary}`
+        },
+        body: body
+      });
+      const data = await response.json();
+      if (data.id) {
+        this.fileId = data.id;
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Sync creation failed', err);
       return false;
     }
   },
 
   async downloadFromCloud(): Promise<UserData | null> {
     if (!this.accessToken) return null;
-    if (!this.fileId) await this.initSync();
+    
+    // Ensure we have a fileId
+    if (!this.fileId) {
+      await this.findVaultFile();
+    }
+    
     if (!this.fileId) return null;
 
     try {
@@ -144,7 +169,7 @@ export const SyncService = {
       if (!res.ok) return null;
       return await res.json();
     } catch (err) {
-      console.error('Download sync failed', err);
+      console.error('Vault download failed', err);
       return null;
     }
   }

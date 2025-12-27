@@ -25,9 +25,8 @@ const App: React.FC = () => {
     return localStorage.getItem('luna_notifications_enabled') === 'true';
   });
 
-  // Track the synchronization lifecycle to prevent race conditions
-  // 'idle' -> 'checking' -> 'ready' (can save)
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'checking' | 'ready'>('idle');
+  // Sync lifecycle: idle -> restoring -> ready
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'restoring' | 'ready'>('idle');
   
   const [userData, setUserData] = useState<UserData>(() => {
     const saved = localStorage.getItem('luna_cycle_data');
@@ -52,22 +51,22 @@ const App: React.FC = () => {
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [logModalDate, setLogModalDate] = useState<string | undefined>();
 
-  // Handle Initial Sync on Boot
+  // Handle Initial Boot Restoration
   useEffect(() => {
-    const initSync = async () => {
+    const restoreSession = async () => {
       const savedToken = localStorage.getItem('luna_google_token');
       if (savedToken && cloudEnabled) {
         SyncService.setToken(savedToken);
         setIsSyncing(true);
-        setSyncStatus('checking');
+        setSyncStatus('restoring');
         try {
           const cloudData = await SyncService.downloadFromCloud();
           if (cloudData) {
             setUserData(cloudData);
-            console.log("Restored vault from cloud successfully.");
+            console.log("Restored vault from Drive.");
           }
         } catch (e) {
-          console.error("Initial cloud check failed.");
+          console.error("Auto-restoration failed.");
         } finally {
           setIsSyncing(false);
           setSyncStatus('ready');
@@ -76,7 +75,7 @@ const App: React.FC = () => {
         setSyncStatus('ready');
       }
     };
-    initSync();
+    restoreSession();
 
     const hash = window.location.hash;
     if (hash.startsWith('#/partner-view')) {
@@ -93,23 +92,24 @@ const App: React.FC = () => {
     }
   }, [cloudEnabled]);
 
-  // Handle Auto-Save
+  // Unified Save Effect
   useEffect(() => {
-    // Local persistence
+    // Save locally
     localStorage.setItem('luna_cycle_data', JSON.stringify(userData));
     
-    // Cloud sync - ONLY if status is 'ready' to prevent overwriting cloud with empty local
+    // Save to Cloud ONLY if we aren't currently restoring
     if (SyncService.accessToken && cloudEnabled && syncStatus === 'ready') {
       const debounceTimer = setTimeout(async () => {
         setIsSyncing(true);
         try {
-          await SyncService.saveToCloud(userData);
+          const success = await SyncService.saveToCloud(userData);
+          if (success) console.log("Cloud sync successful.");
         } catch (e) {
-          console.error("Auto-save failed", e);
+          console.error("Cloud sync failed.", e);
         } finally {
           setIsSyncing(false);
         }
-      }, 2000);
+      }, 3000);
       return () => clearTimeout(debounceTimer);
     }
   }, [userData, cloudEnabled, syncStatus]);
@@ -119,22 +119,22 @@ const App: React.FC = () => {
     setCloudEnabled(true);
     localStorage.setItem('luna_cloud_enabled', 'true');
     setIsSyncing(true);
-    setSyncStatus('checking');
+    setSyncStatus('restoring');
 
     try {
       const cloudData = await SyncService.downloadFromCloud();
       if (cloudData) {
-        // Merge strategy: prioritize cloud data if local is currently empty (typical after cache clear)
-        const hasLocalData = userData.logs.length > 0 || userData.symptoms.length > 0;
-        if (!hasLocalData || confirm("Cloud vault found. Replace local data with cloud version?")) {
-           setUserData(cloudData);
+        // If local data exists, confirm overwrite
+        const localDataPresent = userData.logs.length > 0 || userData.symptoms.length > 0;
+        if (!localDataPresent || confirm("Existing cloud vault found. Load it now? (This replaces local data)")) {
+          setUserData(cloudData);
         }
       } else {
-        // No cloud data? Upload what we have now.
+        // New user? Upload local data immediately to initialize
         await SyncService.saveToCloud(userData);
       }
     } catch (err) {
-      console.error("Linking failed:", err);
+      console.error("Linking cloud failed:", err);
     } finally {
       setIsSyncing(false);
       setSyncStatus('ready');
@@ -241,7 +241,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-full border border-indigo-100 animate-pulse transition-all">
             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
             <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">
-              {syncStatus === 'checking' ? 'Restoring...' : 'Syncing'}
+              {syncStatus === 'restoring' ? 'Restoring...' : 'Syncing Vault'}
             </span>
           </div>
         )}
