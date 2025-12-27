@@ -9,7 +9,7 @@ import { UserData } from '../types';
  * 2. Create a project and 'OAuth client ID' (Web Application)
  * 3. Add your current URL to 'Authorized JavaScript Origins'
  */
-const DEFAULT_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID'; 
+const PLACEHOLDER_ID = 'YOUR_GOOGLE_CLIENT_ID'; 
 const BACKUP_FILENAME = 'luna_private_vault.json';
 
 export const SyncService = {
@@ -17,7 +17,9 @@ export const SyncService = {
   fileId: null as string | null,
 
   getClientId() {
-    return localStorage.getItem('luna_custom_client_id') || DEFAULT_CLIENT_ID;
+    const saved = localStorage.getItem('luna_custom_client_id');
+    if (saved && saved !== PLACEHOLDER_ID) return saved;
+    return PLACEHOLDER_ID;
   },
 
   setCustomClientId(id: string) {
@@ -39,7 +41,7 @@ export const SyncService = {
   async triggerLogin(onSuccess: (token: string) => void, onError: (err?: any) => void) {
     const clientId = this.getClientId();
     
-    if (!clientId || clientId === 'YOUR_GOOGLE_CLIENT_ID') {
+    if (!clientId || clientId === PLACEHOLDER_ID) {
       onError('MISSING_CLIENT_ID');
       return;
     }
@@ -52,6 +54,8 @@ export const SyncService = {
         callback: (response: any) => {
           if (response.access_token) {
             onSuccess(response.access_token);
+          } else if (response.error === 'invalid_client') {
+            onError('INVALID_CLIENT');
           } else {
             onError(response);
           }

@@ -58,7 +58,6 @@ const App: React.FC = () => {
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [logModalDate, setLogModalDate] = useState<string | undefined>();
 
-  // Check for existing cloud token on mount
   useEffect(() => {
     const initSync = async () => {
       const savedToken = localStorage.getItem('luna_google_token');
@@ -93,16 +92,12 @@ const App: React.FC = () => {
     }
   }, [cloudEnabled]);
 
-  // Handle Automatic Silent Sync on Every Change
   useEffect(() => {
     localStorage.setItem('luna_cycle_data', JSON.stringify(userData));
     if (SyncService.accessToken && cloudEnabled) {
       const debounceTimer = setTimeout(async () => {
         setIsSyncing(true);
         const success = await SyncService.saveToCloud(userData);
-        if (!success) {
-          console.warn("Background sync failed. Data will sync on next refresh or change.");
-        }
         setIsSyncing(false);
       }, 1500);
       return () => clearTimeout(debounceTimer);
@@ -119,14 +114,48 @@ const App: React.FC = () => {
       const cloudData = await SyncService.downloadFromCloud();
       if (cloudData) {
         setUserData(cloudData);
-        alert("Success! Cloud vault connected and synced.");
       } else {
-        // No cloud data yet, upload existing local logs
-        const success = await SyncService.saveToCloud(userData);
-        if (success) alert("Success! Private Cloud Vault created.");
+        await SyncService.saveToCloud(userData);
       }
       setIsSyncing(false);
     });
+  };
+
+  const handleExportData = () => {
+    const dataStr = JSON.stringify(userData, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Luna_Backup_${format(new Date(), 'yyyy-MM-dd')}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const importedData = JSON.parse(e.target?.result as string);
+        if (importedData.logs && importedData.settings) {
+          if (confirm("This will replace your current logs with the backup file. Continue?")) {
+            setUserData(importedData);
+            alert("Data imported successfully! ✨");
+          }
+        } else {
+          alert("Invalid backup file format.");
+        }
+      } catch (err) {
+        alert("Error reading file.");
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = ''; // Reset input
   };
 
   const avgCycle = useMemo(() => getCycleSummary(userData.logs, userData.settings.averageCycleLength), [userData.logs, userData.settings.averageCycleLength]);
@@ -171,11 +200,7 @@ const App: React.FC = () => {
   };
 
   const handleUpdateLock = (method: 'pin' | 'google' | undefined, value?: string) => {
-    handleUpdateSettings({
-      lockMethod: method,
-      privacyPin: method === 'pin' ? value : undefined,
-      googleUserEmail: method === 'google' ? value : undefined
-    });
+    handleUpdateSettings({ lockMethod: method, privacyPin: value });
   };
 
   if (partnerData) {
@@ -183,120 +208,117 @@ const App: React.FC = () => {
   }
 
   if (!isUnlocked) {
-    return (
-      <AuthScreen 
-        onUnlock={(token) => {
-          if (token) handleLinkCloud(token);
-          localStorage.setItem('luna_unlocked', 'true');
-          setIsUnlocked(true);
-        }} 
-        onStayOffline={() => {
-          localStorage.setItem('luna_unlocked', 'true');
-          localStorage.setItem('luna_cloud_enabled', 'false');
-          setIsUnlocked(true);
-        }}
-      />
-    );
+    return <AuthScreen onUnlock={(token) => {
+      setIsUnlocked(true);
+      localStorage.setItem('luna_unlocked', 'true');
+      if (token) handleLinkCloud(token);
+    }} onStayOffline={() => {
+      setIsUnlocked(true);
+      localStorage.setItem('luna_unlocked', 'true');
+    }} />;
   }
 
   return (
-    <div className="min-h-screen pb-32 relative">
-      <header className="p-8 md:p-12 max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-white rounded-2xl shadow-sm border border-rose-100 flex items-center justify-center text-2xl">
-              {PHASE_ICONS[currentPhase] || '✨'}
-            </div>
-            <div>
-              <h1 className="text-4xl font-serif text-rose-900 leading-none">Luna</h1>
-              <p className="text-[10px] text-rose-300 font-bold uppercase tracking-[0.2em] mt-1">Private Companion</p>
-            </div>
+    <div className="min-h-screen pb-32">
+      <nav className="fixed top-0 left-0 right-0 bg-[#fff9f8]/80 backdrop-blur-xl z-40 border-b border-rose-50 px-6 h-20 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-white rounded-2xl shadow-sm border border-rose-100 flex items-center justify-center text-xl">🌙</div>
+          <span className="font-serif text-2xl text-rose-900">Luna</span>
+        </div>
+        
+        {isSyncing && (
+          <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-full border border-indigo-100 animate-pulse">
+            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
+            <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Syncing</span>
           </div>
-          <button 
-            onClick={() => {
-              localStorage.removeItem('luna_unlocked');
-              setIsUnlocked(false);
-            }} 
-            className="p-4 bg-rose-50/50 text-rose-400 rounded-2xl border border-rose-100 hover:text-rose-600 transition-all squishy"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          </button>
-        </div>
+        )}
+      </nav>
 
-        <div className="flex gap-2 flex-wrap">
-          <div 
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[9px] font-bold uppercase tracking-wider ${SyncService.accessToken && cloudEnabled ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`} 
-          >
-            <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-indigo-400 animate-bounce' : (SyncService.accessToken && cloudEnabled) ? 'bg-emerald-400' : 'bg-slate-300'}`}></div>
-            {isSyncing ? 'Syncing...' : (SyncService.accessToken && cloudEnabled) ? 'Cloud Secure' : 'Offline Only'}
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-6 space-y-10">
-        <div className="flex bg-rose-50/70 p-1.5 rounded-[2rem] w-full max-w-sm mx-auto shadow-inner glass-card">
-          {(['overview', 'history', 'settings'] as const).map((tab) => (
-            <button 
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-3 px-4 rounded-[1.5rem] text-sm font-bold transition-all capitalize ${activeTab === tab ? 'bg-white text-rose-500 shadow-md scale-105' : 'text-rose-300 hover:text-rose-400'}`}
-            >
-              {tab === 'overview' ? 'Today' : tab}
-            </button>
-          ))}
-        </div>
-
+      <main className="max-w-xl mx-auto px-6 pt-28">
         {activeTab === 'overview' && (
-          <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
-            <section className="bg-white rounded-[3.5rem] p-10 md:p-14 shadow-xl shadow-rose-100/40 border border-white text-center relative overflow-hidden glass-card">
-              <div className={`absolute top-0 left-0 w-full h-3 ${PHASE_COLORS[currentPhase] || 'bg-rose-100'}`}></div>
-              <div className="relative inline-block mb-10">
-                <div className={`w-56 h-56 md:w-72 md:h-72 rounded-full border-[12px] border-white shadow-xl ${PHASE_COLORS[currentPhase] || 'bg-rose-100'} opacity-20 flex items-center justify-center animate-pulse`}></div>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-5xl mb-2">{PHASE_ICONS[currentPhase] || '🌙'}</span>
-                  <span className="text-xs font-bold text-rose-300 uppercase tracking-[0.3em] mb-1">Cycle Day</span>
-                  <span className="text-7xl md:text-9xl font-serif text-rose-900 leading-none">{cycleDay}</span>
-                  <div className={`mt-3 px-4 py-1.5 rounded-full text-white text-xs font-bold ${PHASE_COLORS[currentPhase] || 'bg-rose-300'} shadow-lg`}>
-                    {currentPhase}
-                  </div>
+          <div className="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700">
+            <section className="relative h-80 flex flex-col items-center justify-center text-center overflow-hidden rounded-[3.5rem] bg-white shadow-2xl shadow-rose-100/50 border border-white">
+              <div className={`absolute inset-0 opacity-10 ${PHASE_COLORS[currentPhase]}`}></div>
+              <div className="relative z-10 flex flex-col items-center">
+                <div className="text-7xl mb-6 transform hover:scale-110 transition-transform duration-500">{PHASE_ICONS[currentPhase]}</div>
+                <h2 className="text-4xl font-serif text-gray-900 mb-2">{currentPhase} Phase</h2>
+                <p className="text-rose-400 font-bold text-[10px] uppercase tracking-[0.3em] mb-4">Cycle Day {cycleDay}</p>
+                <div className="bg-rose-50/50 backdrop-blur-md px-6 py-2.5 rounded-2xl border border-rose-100/50">
+                   <p className="text-gray-500 text-xs font-semibold">Period in <span className="text-rose-600 font-bold">{daysUntilNext} days</span></p>
                 </div>
               </div>
-              <div className="bg-rose-50/50 rounded-[2.5rem] p-6 mb-8">
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">{daysUntilNext === 0 ? "Expected Today" : `${daysUntilNext} Days Remaining`}</h2>
-                <p className="text-gray-500 max-w-md mx-auto leading-relaxed text-sm font-medium">{PHASE_DESCRIPTIONS[currentPhase]}</p>
-              </div>
-
-              <button 
-                onClick={() => { setLogModalDate(format(new Date(), 'yyyy-MM-dd')); setIsLogModalOpen(true); }}
-                className={`w-full max-w-xs mx-auto py-5 rounded-[2rem] text-white font-bold shadow-2xl transition-all flex items-center justify-center gap-3 squishy text-lg ${PHASE_COLORS[currentPhase] || 'bg-rose-400'}`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z"/></svg>
-                Log Today
-              </button>
             </section>
+
+            <section className="bg-white rounded-[3rem] p-8 border border-rose-50 shadow-sm leading-relaxed">
+              <p className="text-gray-600 font-medium italic text-lg text-center">"{PHASE_DESCRIPTIONS[currentPhase]}"</p>
+            </section>
+
+            <button 
+              onClick={() => setIsLogModalOpen(true)}
+              className="w-full bg-rose-400 hover:bg-rose-500 text-white font-bold py-6 rounded-[2.5rem] shadow-xl shadow-rose-200 transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 squishy"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+              Log Today
+            </button>
+
             <AdvicePanel phase={currentPhase} daysRemaining={daysUntilNext} symptoms={currentDaySymptoms} />
           </div>
         )}
 
-        {activeTab === 'history' && <HistoryView userData={userData} onDayClick={(date) => { setLogModalDate(date); setIsLogModalOpen(true); }} />}
+        {activeTab === 'history' && (
+          <HistoryView 
+            userData={userData} 
+            onDayClick={(date) => {
+              setLogModalDate(date);
+              setIsLogModalOpen(true);
+            }} 
+          />
+        )}
+
         {activeTab === 'settings' && (
           <SettingsView 
             userData={userData} 
             cloudEnabled={cloudEnabled}
-            onUpdateLock={handleUpdateLock}
-            onUpdateSettings={handleUpdateSettings}
-            onLinkCloud={handleLinkCloud}
             notificationsEnabled={notificationsEnabled}
-            onToggleNotifications={() => setNotificationsEnabled(!notificationsEnabled)}
+            onUpdateSettings={handleUpdateSettings}
+            onUpdateLock={handleUpdateLock}
+            onLinkCloud={handleLinkCloud}
+            onToggleNotifications={() => {
+              const newVal = !notificationsEnabled;
+              setNotificationsEnabled(newVal);
+              localStorage.setItem('luna_notifications_enabled', String(newVal));
+            }}
+            onExport={handleExportData}
+            onImport={handleImportData}
           />
         )}
       </main>
 
+      <div className="fixed bottom-8 left-6 right-6 z-50">
+        <nav className="max-w-md mx-auto bg-white/80 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl shadow-rose-200/50 border border-white/50 p-2 flex justify-around items-center h-20">
+          <button onClick={() => setActiveTab('overview')} className={`flex-1 flex flex-col items-center justify-center gap-1.5 transition-all ${activeTab === 'overview' ? 'text-rose-500 scale-110' : 'text-gray-300 hover:text-rose-300'}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span className="text-[9px] font-bold uppercase tracking-widest">Today</span>
+          </button>
+          <button onClick={() => setActiveTab('history')} className={`flex-1 flex flex-col items-center justify-center gap-1.5 transition-all ${activeTab === 'history' ? 'text-rose-500 scale-110' : 'text-gray-300 hover:text-rose-300'}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="M18 13v6"/><path d="M15 16h6"/></svg>
+            <span className="text-[9px] font-bold uppercase tracking-widest">Roadmap</span>
+          </button>
+          <button onClick={() => setActiveTab('settings')} className={`flex-1 flex flex-col items-center justify-center gap-1.5 transition-all ${activeTab === 'settings' ? 'text-rose-500 scale-110' : 'text-gray-300 hover:text-rose-300'}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span className="text-[9px] font-bold uppercase tracking-widest">Settings</span>
+          </button>
+        </nav>
+      </div>
+
       <LogModal 
         isOpen={isLogModalOpen} 
-        onClose={() => setIsLogModalOpen(false)} 
-        onSave={handleSaveLog} 
-        userData={userData} 
+        onClose={() => {
+          setIsLogModalOpen(false);
+          setLogModalDate(undefined);
+        }} 
+        onSave={handleSaveLog}
+        userData={userData}
         initialDate={logModalDate}
         cloudEnabled={cloudEnabled}
         onEnableCloud={handleLinkCloud}
