@@ -12,10 +12,14 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        // Essential to prevent "process is not defined" in the browser
-        'process.env': JSON.stringify(env),
-        'process.env.API_KEY': JSON.stringify(env.API_KEY || ''),
-        'process.env.GOOGLE_CLIENT_ID': JSON.stringify(env.GOOGLE_CLIENT_ID || ''),
+        'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY || ''),
+        'process.env.GOOGLE_CLIENT_ID': JSON.stringify(env.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || ''),
+        'process.env.NODE_ENV': JSON.stringify(mode),
+        'process.env': JSON.stringify({
+           API_KEY: env.API_KEY || process.env.API_KEY || '',
+           GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '',
+           NODE_ENV: mode
+        })
       },
       resolve: {
         alias: {
