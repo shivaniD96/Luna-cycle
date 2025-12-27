@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { format, differenceInDays, isSameDay } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 import { UserData, PartnerData, LogPayload } from './types';
 import { calculateNextPeriod, getCurrentCycleDay, determinePhase, getCycleSummary } from './utils/cycleCalculator.ts';
 import { PHASE_COLORS, PHASE_ICONS, PHASE_DESCRIPTIONS } from './constants.tsx';
@@ -14,8 +14,11 @@ import { SyncService } from './services/syncService.ts';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'settings'>('overview');
-  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(() => {
+    return localStorage.getItem('luna_unlocked') === 'true';
+  });
   const [partnerData, setPartnerData] = useState<PartnerData | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
     return localStorage.getItem('luna_notifications_enabled') === 'true';
   });
@@ -51,9 +54,30 @@ const App: React.FC = () => {
 
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [logModalDate, setLogModalDate] = useState<string | undefined>();
-  const [isSyncActive, setIsSyncActive] = useState(false);
 
+  // Check for existing cloud token on mount and try silent refresh
   useEffect(() => {
+    const initSync = async () => {
+      const savedToken = localStorage.getItem('luna_google_token');
+      const cloudEnabled = localStorage.getItem('luna_cloud_enabled') === 'true';
+      
+      if (savedToken && cloudEnabled) {
+        SyncService.setToken(savedToken);
+        setIsSyncing(true);
+        const cloudData = await SyncService.downloadFromCloud();
+        if (cloudData) {
+          // Merge logic: prefer cloud data if it has more logs
+          setUserData(prev => {
+            const cloudLogCount = (cloudData.logs?.length || 0) + (cloudData.symptoms?.length || 0);
+            const localLogCount = (prev.logs?.length || 0) + (prev.symptoms?.length || 0);
+            return cloudLogCount >= localLogCount ? cloudData : prev;
+          });
+        }
+        setIsSyncing(false);
+      }
+    };
+    initSync();
+
     const hash = window.location.hash;
     if (hash.startsWith('#/partner-view')) {
       const params = new URLSearchParams(hash.split('?')[1]);
@@ -67,27 +91,31 @@ const App: React.FC = () => {
         }
       }
     }
+  }, []);
 
-    if (!userData.settings.lockMethod) {
-      setIsUnlocked(true);
-    }
-  }, [userData.settings.lockMethod]);
-
+  // Handle Automatic Silent Sync on Every Change
   useEffect(() => {
     localStorage.setItem('luna_cycle_data', JSON.stringify(userData));
-    if (isSyncActive) {
+    if (SyncService.accessToken && localStorage.getItem('luna_cloud_enabled') === 'true') {
       const debounceTimer = setTimeout(async () => {
-        await SyncService.saveToFile(userData);
-      }, 1000);
+        setIsSyncing(true);
+        await SyncService.saveToCloud(userData);
+        setIsSyncing(false);
+      }, 1500);
       return () => clearTimeout(debounceTimer);
     }
-  }, [userData, isSyncActive]);
+  }, [userData]);
 
   const avgCycle = useMemo(() => getCycleSummary(userData.logs, userData.settings.averageCycleLength), [userData.logs, userData.settings.averageCycleLength]);
   const cycleDay = useMemo(() => getCurrentCycleDay(userData.logs), [userData.logs]);
   const currentPhase = useMemo(() => determinePhase(cycleDay, avgCycle, userData.settings.averagePeriodLength), [cycleDay, avgCycle, userData.settings.averagePeriodLength]);
   const nextPeriod = useMemo(() => calculateNextPeriod(userData.logs, avgCycle), [userData.logs, avgCycle]);
   const daysUntilNext = nextPeriod ? differenceInDays(nextPeriod, new Date()) : 28;
+
+  const currentDaySymptoms = useMemo(() => {
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    return userData.symptoms.find(s => s.date === todayStr)?.physicalSymptoms || [];
+  }, [userData.symptoms]);
 
   // Local Notification Engine
   useEffect(() => {
@@ -96,14 +124,12 @@ const App: React.FC = () => {
       const today = format(new Date(), 'yyyy-MM-dd');
 
       if (lastCheck !== today) {
-        // Check for Period
         if (daysUntilNext === 1) {
           new Notification("Luna Cycle Reminder", {
             body: "Your period is expected tomorrow. Take care of yourself! 🌙",
             icon: "https://img.icons8.com/fluency/192/000000/moon.png"
           });
         }
-        // Check for Ovulation (Approx 14 days before period)
         if (daysUntilNext === 14) {
           new Notification("Luna Cycle Reminder", {
             body: "You are likely approaching ovulation. Energy peak expected! ✨",
@@ -124,17 +150,11 @@ const App: React.FC = () => {
       if (permission === 'granted') {
         setNotificationsEnabled(true);
         localStorage.setItem('luna_notifications_enabled', 'true');
-        new Notification("Luna Cycle", { body: "Notifications enabled! We'll alert you for upcoming cycles. 🌙" });
       } else {
-        alert("Please enable notification permissions in your browser settings to use this feature.");
+        alert("Enable notifications in browser settings.");
       }
     }
   };
-
-  const currentDaySymptoms = useMemo(() => {
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    return userData.symptoms.find(s => s.date === todayStr)?.physicalSymptoms || [];
-  }, [userData.symptoms]);
 
   const handleSaveLog = (payload: LogPayload) => {
     setUserData(prev => {
@@ -157,14 +177,6 @@ const App: React.FC = () => {
 
       return { ...prev, logs: newLogs, symptoms: newSymptoms };
     });
-  };
-
-  const handleEnableSync = async () => {
-    const success = await SyncService.requestFileHandle();
-    if (success) {
-      setIsSyncActive(true);
-      SyncService.saveToFile(userData);
-    }
   };
 
   const handleUpdateSettings = (newSettings: Partial<UserData['settings']>) => {
@@ -191,19 +203,33 @@ const App: React.FC = () => {
     };
     const url = `${window.location.origin}${window.location.pathname}#/partner-view?data=${btoa(JSON.stringify(shareObj))}`;
     navigator.clipboard.writeText(url);
-    alert('Partner link copied to clipboard!');
+    alert('Partner link copied!');
   };
 
   if (partnerData) {
     return <PartnerPortal data={partnerData} />;
   }
 
-  if (!isUnlocked && userData.settings.lockMethod) {
+  if (!isUnlocked) {
     return (
       <AuthScreen 
-        correctPin={userData.settings.privacyPin} 
-        lockMethod={userData.settings.lockMethod} 
-        onUnlock={() => setIsUnlocked(true)} 
+        onUnlock={(token) => {
+          if (token) {
+            SyncService.setToken(token);
+            localStorage.setItem('luna_cloud_enabled', 'true');
+            SyncService.initSync().then(async () => {
+              const cloudData = await SyncService.downloadFromCloud();
+              if (cloudData) setUserData(cloudData);
+            });
+          }
+          localStorage.setItem('luna_unlocked', 'true');
+          setIsUnlocked(true);
+        }} 
+        onStayOffline={() => {
+          localStorage.setItem('luna_unlocked', 'true');
+          localStorage.setItem('luna_cloud_enabled', 'false');
+          setIsUnlocked(true);
+        }}
       />
     );
   }
@@ -222,31 +248,32 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="flex gap-2">
-             <button onClick={generateShareLink} title="Share with Partner" className="p-4 bg-white/70 text-rose-400 rounded-2xl border border-white hover:shadow-md transition-all squishy">
+             <button onClick={generateShareLink} title="Share" className="p-4 bg-white/70 text-rose-400 rounded-2xl border border-white hover:shadow-md transition-all squishy">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/></svg>
               </button>
-              <button onClick={() => setIsUnlocked(false)} className="p-4 bg-rose-50/50 text-rose-400 rounded-2xl border border-rose-100 hover:text-rose-600 transition-all squishy">
+              <button 
+                onClick={() => {
+                  localStorage.removeItem('luna_unlocked');
+                  setIsUnlocked(false);
+                }} 
+                className="p-4 bg-rose-50/50 text-rose-400 rounded-2xl border border-rose-100 hover:text-rose-600 transition-all squishy"
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               </button>
           </div>
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[9px] font-bold uppercase tracking-wider ${isSyncActive ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-amber-50 border-amber-100 text-amber-600 cursor-pointer'}`} onClick={!isSyncActive ? () => setActiveTab('settings') : undefined}>
-            <div className={`w-1.5 h-1.5 rounded-full ${isSyncActive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></div>
-            {isSyncActive ? 'Synced' : 'Sync Disconnected'}
+          <div 
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[9px] font-bold uppercase tracking-wider ${SyncService.accessToken ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`} 
+          >
+            <div className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-indigo-400 animate-bounce' : SyncService.accessToken ? 'bg-emerald-400' : 'bg-slate-300'}`}></div>
+            {isSyncing ? 'Auto-Syncing...' : SyncService.accessToken ? 'Cloud Secure' : 'Local Only'}
           </div>
-          {notificationsEnabled && (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-[9px] font-bold uppercase tracking-wider">
-               <div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>
-               Alerts Active
-            </div>
-          )}
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-6 space-y-10">
-        
         <div className="flex bg-rose-50/70 p-1.5 rounded-[2rem] w-full max-w-sm mx-auto shadow-inner glass-card">
           {(['overview', 'history', 'settings'] as const).map((tab) => (
             <button 
@@ -283,17 +310,12 @@ const App: React.FC = () => {
                 onClick={() => { setLogModalDate(format(new Date(), 'yyyy-MM-dd')); setIsLogModalOpen(true); }}
                 className={`w-full max-w-xs mx-auto py-5 rounded-[2rem] text-white font-bold shadow-2xl transition-all flex items-center justify-center gap-3 squishy text-lg ${PHASE_COLORS[currentPhase] || 'bg-rose-400'}`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121(1 1 3 3L12 15l-4 1 1-4Z"/></svg>
                 Log Today
               </button>
             </section>
 
-            <AdvicePanel 
-              phase={currentPhase} 
-              daysRemaining={daysUntilNext} 
-              symptoms={currentDaySymptoms} 
-              onOpenSettings={() => setActiveTab('settings')}
-            />
+            <AdvicePanel phase={currentPhase} daysRemaining={daysUntilNext} symptoms={currentDaySymptoms} />
           </div>
         )}
 
@@ -301,9 +323,6 @@ const App: React.FC = () => {
         {activeTab === 'settings' && (
           <SettingsView 
             userData={userData} 
-            onImport={(data) => { setUserData(data); setActiveTab('overview'); }} 
-            isSyncActive={isSyncActive}
-            onEnableSync={handleEnableSync}
             onUpdateLock={handleUpdateLock}
             onUpdateSettings={handleUpdateSettings}
             notificationsEnabled={notificationsEnabled}

@@ -1,117 +1,80 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 interface AuthScreenProps {
-  correctPin?: string;
-  lockMethod?: 'pin' | 'google';
-  onUnlock: () => void;
+  onUnlock: (token?: string) => void;
+  onStayOffline: () => void;
 }
 
-const AuthScreen: React.FC<AuthScreenProps> = ({ correctPin, lockMethod = 'pin', onUnlock }) => {
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState(false);
+const AuthScreen: React.FC<AuthScreenProps> = ({ onUnlock, onStayOffline }) => {
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (lockMethod === 'google') {
-      // Initialize Google Identity Services
+  const handleGoogleLogin = () => {
+    setLoading(true);
+    try {
       // @ts-ignore
-      if (window.google) {
-        // @ts-ignore
-        window.google.accounts.id.initialize({
-          client_id: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com', // Placeholder
-          callback: (response: any) => {
-            console.log("Encoded JWT ID token: " + response.credential);
-            // In a real app, you'd verify this JWT. Here we treat any valid login as unlocking.
-            onUnlock();
+      const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: '782298926978-f7b8jbe976159j8rph87un87r7671077.apps.googleusercontent.com', // Public-safe client ID for demo/app use
+        scope: 'https://www.googleapis.com/auth/drive.appdata email profile',
+        callback: (response: any) => {
+          if (response.access_token) {
+            onUnlock(response.access_token);
+          } else {
+            setLoading(false);
           }
-        });
-        // @ts-ignore
-        window.google.accounts.id.renderButton(
-          document.getElementById("googleBtn"),
-          { theme: "outline", size: "large", shape: "pill", width: 280 }
-        );
-      }
-    }
-  }, [lockMethod, onUnlock]);
-
-  const handleKeyPress = (num: string) => {
-    setError(false);
-    if (pin.length < 4) {
-      const newPin = pin + num;
-      setPin(newPin);
-      if (newPin.length === 4) {
-        if (newPin === correctPin) {
-          onUnlock();
-        } else {
-          setError(true);
-          setTimeout(() => setPin(''), 500);
-        }
-      }
+        },
+      });
+      client.requestAccessToken();
+    } catch (e) {
+      console.error("Auth init failed", e);
+      setLoading(false);
+      alert("Cloud login failed. Please try again or stay offline.");
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-rose-50 flex flex-col items-center justify-center p-6 z-[100] animate-in fade-in duration-500">
-      <div className="mb-12 text-center">
-        <div className="w-20 h-20 bg-white rounded-3xl shadow-sm border border-rose-100 flex items-center justify-center mx-auto mb-6">
-          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-rose-500"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        </div>
-        <h1 className="text-3xl font-serif text-rose-900 mb-2">LunaCycle</h1>
-        <p className="text-rose-400 font-medium text-sm">
-          {lockMethod === 'google' ? 'Sign in with Google to unlock' : 'Enter your 4-digit PIN to unlock'}
-        </p>
-      </div>
+    <div className="fixed inset-0 bg-[#fff9f8] flex flex-col items-center justify-center p-6 z-[100] animate-in fade-in duration-700">
+      {/* Decorative Blobs */}
+      <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-rose-100/50 rounded-full blur-3xl animate-pulse"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-64 h-64 bg-indigo-100/50 rounded-full blur-3xl" style={{ animationDelay: '2s' }}></div>
 
-      {lockMethod === 'google' ? (
-        <div className="flex flex-col items-center gap-6">
-          <div id="googleBtn" className="min-h-[44px]"></div>
+      <div className="relative z-10 max-w-sm w-full text-center">
+        <div className="w-24 h-24 bg-white rounded-[2.5rem] shadow-xl shadow-rose-100 border border-rose-50 flex items-center justify-center mx-auto mb-8 animate-bounce duration-[3000ms]">
+          <span className="text-5xl">🌙</span>
+        </div>
+        
+        <h1 className="text-4xl font-serif text-rose-900 mb-3">Welcome to Luna</h1>
+        <p className="text-rose-400 font-medium text-sm leading-relaxed mb-12">
+          A private companion for your cycle.<br/>Choose how you want to keep your data.
+        </p>
+
+        <div className="space-y-4">
           <button 
-            onClick={onUnlock} 
-            className="text-[10px] text-rose-300 uppercase tracking-widest hover:text-rose-500 transition-colors"
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-3xl flex flex-col items-center justify-center gap-1 font-bold shadow-xl shadow-indigo-100 transition-all hover:scale-[1.02] active:scale-[0.98] squishy disabled:opacity-50"
           >
-            Simulate Login (Development)
+            <div className="flex items-center gap-2">
+              <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" className="w-5 h-5 brightness-0 invert" alt="G" />
+              <span>Sync with Private Cloud</span>
+            </div>
+            <span className="text-[9px] opacity-70 font-normal uppercase tracking-widest">Automatic & Secure</span>
+          </button>
+
+          <button 
+            onClick={onStayOffline}
+            disabled={loading}
+            className="w-full py-5 bg-white border-2 border-rose-100 text-rose-900 rounded-3xl flex flex-col items-center justify-center gap-1 font-bold hover:bg-rose-50 transition-all squishy disabled:opacity-50"
+          >
+            <span>Stay Offline Only</span>
+            <span className="text-[9px] text-rose-300 font-normal uppercase tracking-widest">Local Device Only</span>
           </button>
         </div>
-      ) : (
-        <>
-          <div className="flex gap-4 mb-12">
-            {[0, 1, 2, 3].map((i) => (
-              <div 
-                key={i} 
-                className={`w-4 h-4 rounded-full border-2 transition-all duration-200 ${
-                  error ? 'bg-rose-500 border-rose-500 animate-bounce' : 
-                  pin.length > i ? 'bg-rose-400 border-rose-400' : 'border-rose-200'
-                }`}
-              ></div>
-            ))}
-          </div>
 
-          <div className="grid grid-cols-3 gap-6 max-w-xs w-full">
-            {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
-              <button
-                key={num}
-                onClick={() => handleKeyPress(num)}
-                className="w-16 h-16 rounded-full bg-white text-rose-900 text-2xl font-medium shadow-sm active:bg-rose-100 active:scale-95 transition-all flex items-center justify-center mx-auto"
-              >
-                {num}
-              </button>
-            ))}
-            <div />
-            <button
-              onClick={() => handleKeyPress('0')}
-              className="w-16 h-16 rounded-full bg-white text-rose-900 text-2xl font-medium shadow-sm active:bg-rose-100 active:scale-95 transition-all flex items-center justify-center mx-auto"
-            >
-              0
-            </button>
-            <button
-              onClick={() => setPin(pin.slice(0, -1))}
-              className="w-16 h-16 flex items-center justify-center text-rose-300 hover:text-rose-500 transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
-            </button>
-          </div>
-        </>
-      )}
+        <p className="mt-12 text-[10px] text-rose-300 font-bold uppercase tracking-widest px-8 leading-loose">
+          Luna never sees your data.<br/>All sync happens via your own Google account.
+        </p>
+      </div>
     </div>
   );
 };
