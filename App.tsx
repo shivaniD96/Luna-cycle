@@ -58,11 +58,10 @@ const App: React.FC = () => {
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [logModalDate, setLogModalDate] = useState<string | undefined>();
 
-  // Check for existing cloud token on mount and try silent refresh
+  // Check for existing cloud token on mount
   useEffect(() => {
     const initSync = async () => {
       const savedToken = localStorage.getItem('luna_google_token');
-      
       if (savedToken && cloudEnabled) {
         SyncService.setToken(savedToken);
         setIsSyncing(true);
@@ -100,7 +99,11 @@ const App: React.FC = () => {
     if (SyncService.accessToken && cloudEnabled) {
       const debounceTimer = setTimeout(async () => {
         setIsSyncing(true);
-        await SyncService.saveToCloud(userData);
+        const success = await SyncService.saveToCloud(userData);
+        if (!success) {
+          // If sync fails due to expired token, we might need to prompt for login again
+          console.warn("Background sync failed. Token might be expired.");
+        }
         setIsSyncing(false);
       }, 1500);
       return () => clearTimeout(debounceTimer);
@@ -112,12 +115,14 @@ const App: React.FC = () => {
     setCloudEnabled(true);
     localStorage.setItem('luna_cloud_enabled', 'true');
     setIsSyncing(true);
+    
     SyncService.initSync().then(async () => {
       const cloudData = await SyncService.downloadFromCloud();
       if (cloudData) {
+        // Prompt or merge? For now, favor cloud if it exists
         setUserData(cloudData);
       } else {
-        // If no cloud data, upload current local data immediately
+        // No cloud data yet, upload existing local logs
         await SyncService.saveToCloud(userData);
       }
       setIsSyncing(false);
@@ -295,16 +300,10 @@ const App: React.FC = () => {
         initialDate={logModalDate}
         cloudEnabled={cloudEnabled}
         onEnableCloud={() => {
-          // Trigger the Google Login flow from Modal
-          // This will be handled by the AuthScreen or a shared utility
-          const client = (window as any).google.accounts.oauth2.initTokenClient({
-            client_id: '782298926978-f7b8jbe976159j8rph87un87r7671077.apps.googleusercontent.com',
-            scope: 'https://www.googleapis.com/auth/drive.appdata email profile',
-            callback: (response: any) => {
-              if (response.access_token) handleLinkCloud(response.access_token);
-            },
-          });
-          client.requestAccessToken();
+          SyncService.triggerLogin(
+            (token) => handleLinkCloud(token),
+            () => alert("Cloud linking failed. Verify your Client ID configuration.")
+          );
         }}
       />
     </div>

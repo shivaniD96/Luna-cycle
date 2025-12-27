@@ -1,12 +1,14 @@
 
 import { UserData } from '../types';
 
+// IMPORTANT: Replace this with your actual Client ID from Google Cloud Console
+// Ensure your 'Authorized JavaScript Origins' matches your deployment URL.
+export const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID'; 
 const BACKUP_FILENAME = 'luna_private_vault.json';
 
 /**
  * Luna Automatic Sync Engine
  * Uses Google Drive AppData folder to silently sync data across devices.
- * This area is invisible to the user in their standard Drive UI.
  */
 export const SyncService = {
   accessToken: null as string | null,
@@ -22,6 +24,30 @@ export const SyncService = {
     this.fileId = null;
     localStorage.removeItem('luna_google_token');
     localStorage.removeItem('luna_cloud_enabled');
+  },
+
+  /**
+   * Universal trigger for Google Identity Services flow
+   */
+  async triggerLogin(onSuccess: (token: string) => void, onError?: () => void) {
+    try {
+      // @ts-ignore
+      const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/drive.appdata email profile',
+        callback: (response: any) => {
+          if (response.access_token) {
+            onSuccess(response.access_token);
+          } else if (onError) {
+            onError();
+          }
+        },
+      });
+      client.requestAccessToken();
+    } catch (e) {
+      console.error("Auth initialization failed", e);
+      if (onError) onError();
+    }
   },
 
   async initSync() {
@@ -52,7 +78,6 @@ export const SyncService = {
       if (!this.fileId) {
         const found = await this.initSync();
         if (!found) {
-          // Create new invisible file in AppData folder
           const metadata = {
             name: BACKUP_FILENAME,
             parents: ['appDataFolder']
@@ -72,7 +97,6 @@ export const SyncService = {
         }
       }
 
-      // Silent background update
       await fetch(`https://www.googleapis.com/upload/drive/v3/files/${this.fileId}?uploadType=media`, {
         method: 'PATCH',
         headers: {
@@ -90,12 +114,7 @@ export const SyncService = {
 
   async downloadFromCloud(): Promise<UserData | null> {
     if (!this.accessToken) return null;
-    
-    // Ensure we have the fileId
-    if (!this.fileId) {
-      await this.initSync();
-    }
-    
+    if (!this.fileId) await this.initSync();
     if (!this.fileId) return null;
 
     try {

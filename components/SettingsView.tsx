@@ -18,21 +18,20 @@ const SettingsView: React.FC<SettingsViewProps> = ({
   notificationsEnabled, onToggleNotifications
 }) => {
   const [pinInput, setPinInput] = useState('');
+  const [isAuthorizing, setIsAuthorizing] = useState(false);
 
   const handleGoogleAuth = () => {
-    try {
-      // @ts-ignore
-      const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: '782298926978-f7b8jbe976159j8rph87un87r7671077.apps.googleusercontent.com',
-        scope: 'https://www.googleapis.com/auth/drive.appdata email profile',
-        callback: (response: any) => {
-          if (response.access_token) onLinkCloud(response.access_token);
-        },
-      });
-      client.requestAccessToken();
-    } catch (e) {
-      alert("Auth failed. Check connection.");
-    }
+    setIsAuthorizing(true);
+    SyncService.triggerLogin(
+      (token) => {
+        setIsAuthorizing(false);
+        onLinkCloud(token);
+      },
+      () => {
+        setIsAuthorizing(false);
+        alert("Authorization failed. Ensure your Google Client ID is authorized for this origin.");
+      }
+    );
   };
 
   const handleSetPin = () => {
@@ -70,10 +69,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({
           ) : (
             <button 
               onClick={handleGoogleAuth}
-              className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg flex items-center justify-center gap-3 squishy transition-all hover:bg-indigo-700"
+              disabled={isAuthorizing}
+              className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg flex items-center justify-center gap-3 squishy transition-all hover:bg-indigo-700 disabled:opacity-50"
             >
               <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" className="w-5 h-5 brightness-0 invert" alt="G" />
-              Link Google Drive
+              {isAuthorizing ? 'Authorizing...' : 'Link Google Drive'}
             </button>
           )}
         </div>

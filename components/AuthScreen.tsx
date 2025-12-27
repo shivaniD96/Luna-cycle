@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { SyncService } from '../services/syncService';
 
 interface AuthScreenProps {
   onUnlock: (token?: string) => void;
@@ -11,30 +12,17 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onUnlock, onStayOffline }) => {
 
   const handleGoogleLogin = () => {
     setLoading(true);
-    try {
-      // @ts-ignore
-      const client = window.google.accounts.oauth2.initTokenClient({
-        client_id: '782298926978-f7b8jbe976159j8rph87un87r7671077.apps.googleusercontent.com', // Public-safe client ID for demo/app use
-        scope: 'https://www.googleapis.com/auth/drive.appdata email profile',
-        callback: (response: any) => {
-          if (response.access_token) {
-            onUnlock(response.access_token);
-          } else {
-            setLoading(false);
-          }
-        },
-      });
-      client.requestAccessToken();
-    } catch (e) {
-      console.error("Auth init failed", e);
-      setLoading(false);
-      alert("Cloud login failed. Please try again or stay offline.");
-    }
+    SyncService.triggerLogin(
+      (token) => onUnlock(token),
+      () => {
+        setLoading(false);
+        alert("Authorization failed. Please check your internet connection and verify that your Client ID is correctly configured for this domain.");
+      }
+    );
   };
 
   return (
     <div className="fixed inset-0 bg-[#fff9f8] flex flex-col items-center justify-center p-6 z-[100] animate-in fade-in duration-700">
-      {/* Decorative Blobs */}
       <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-rose-100/50 rounded-full blur-3xl animate-pulse"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-64 h-64 bg-indigo-100/50 rounded-full blur-3xl" style={{ animationDelay: '2s' }}></div>
 
@@ -56,7 +44,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onUnlock, onStayOffline }) => {
           >
             <div className="flex items-center gap-2">
               <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" className="w-5 h-5 brightness-0 invert" alt="G" />
-              <span>Sync with Private Cloud</span>
+              <span>{loading ? 'Authenticating...' : 'Sync with Private Cloud'}</span>
             </div>
             <span className="text-[9px] opacity-70 font-normal uppercase tracking-widest">Automatic & Secure</span>
           </button>
