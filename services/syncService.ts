@@ -54,6 +54,7 @@ export const SyncService = {
   async findVaultFile() {
     if (!this.accessToken) return null;
     try {
+      // spaces=drive ensures we look in the visible user folder
       const response = await fetch(
         `https://www.googleapis.com/drive/v3/files?q=name='${BACKUP_FILENAME}' and trashed=false&spaces=drive&fields=files(id, name)`,
         { headers: { Authorization: `Bearer ${this.accessToken}` } }
@@ -61,10 +62,12 @@ export const SyncService = {
       const data = await response.json();
       if (data.files && data.files.length > 0) {
         this.fileId = data.files[0].id;
+        console.log("Vault discovered in Drive:", this.fileId);
         return this.fileId;
       }
       return null;
     } catch (err) {
+      console.error("Discovery failed", err);
       return null;
     }
   },
@@ -75,6 +78,7 @@ export const SyncService = {
   async saveToCloud(userData: UserData) {
     if (!this.accessToken) return false;
 
+    // Always try to resolve the file ID if missing
     if (!this.fileId) {
       const found = await this.findVaultFile();
       if (!found) {
@@ -91,9 +95,10 @@ export const SyncService = {
     const metadata = {
       name: BACKUP_FILENAME,
       mimeType: 'application/json',
-      parents: ['root']
+      parents: ['root'] // FORCE visible in root
     };
 
+    // Correctly structured multipart/related body
     const boundary = '-------LunaVaultBoundary';
     const delimiter = `\r\n--${boundary}\r\n`;
     const closeDelimiter = `\r\n--${boundary}--`;
@@ -119,10 +124,12 @@ export const SyncService = {
       const data = await response.json();
       if (data.id) {
         this.fileId = data.id;
+        console.log("New visible vault created:", data.id);
         return true;
       }
       return false;
     } catch (err) {
+      console.error("Creation failed", err);
       return false;
     }
   },
@@ -140,6 +147,7 @@ export const SyncService = {
       });
       return res.ok;
     } catch (err) {
+      console.error("Update failed", err);
       return false;
     }
   },
@@ -156,6 +164,7 @@ export const SyncService = {
       if (!res.ok) return null;
       return await res.json();
     } catch (err) {
+      console.error("Download failed", err);
       return null;
     }
   }

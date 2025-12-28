@@ -17,7 +17,10 @@ const App: React.FC = () => {
   const [partnerData, setPartnerData] = useState<PartnerData | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [cloudEnabled, setCloudEnabled] = useState(() => localStorage.getItem('luna_cloud_enabled') === 'true');
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'checking' | 'ready'>('idle');
+  
+  // LifeCycle: 'idle' -> 'discovering' -> 'ready'
+  // CRITICAL: App must not save to cloud while in 'discovering' state
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'discovering' | 'ready'>('idle');
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => localStorage.getItem('luna_notifications_enabled') === 'true');
 
   const [userData, setUserData] = useState<UserData>(() => {
@@ -34,29 +37,27 @@ const App: React.FC = () => {
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [logModalDate, setLogModalDate] = useState<string | undefined>();
 
-  // Deep Sync Check on startup
+  // STARTUP DISCOVERY ENGINE
   useEffect(() => {
-    const initSync = async () => {
+    const runDiscovery = async () => {
       const token = localStorage.getItem('luna_google_token');
       if (token && cloudEnabled) {
         SyncService.setToken(token);
-        setSyncStatus('checking');
+        setSyncStatus('discovering');
         setIsSyncing(true);
         try {
+          // Check Drive for existing file
           const cloudData = await SyncService.downloadFromCloud();
           if (cloudData) {
-            // Priority: If local is empty, restore cloud immediately
-            const isLocalEmpty = userData.logs.length === 0 && userData.symptoms.length === 0;
-            if (isLocalEmpty) {
+            // Logic: If local is empty (e.g. cache cleared), restore immediately
+            const localIsEmpty = userData.logs.length === 0 && userData.symptoms.length === 0;
+            if (localIsEmpty) {
               setUserData(cloudData);
-              console.log("Empty local storage detected. Restored from Drive.");
-            } else {
-              // Merging could happen here, but for now we keep local if it exists
-              // or let the user decide in settings.
+              console.log("Auto-restored vault from Google Drive.");
             }
           }
         } catch (e) {
-          console.error("Deep sync failed", e);
+          console.error("Vault discovery failed", e);
         } finally {
           setIsSyncing(false);
           setSyncStatus('ready');
@@ -65,18 +66,26 @@ const App: React.FC = () => {
         setSyncStatus('ready');
       }
     };
-    initSync();
+    runDiscovery();
   }, [cloudEnabled]);
 
-  // Handle local save + cloud sync queue
+  // UNIFIED PERSISTENCE ENGINE
   useEffect(() => {
+    // 1. Save locally (immediate)
     localStorage.setItem('luna_cycle_data', JSON.stringify(userData));
 
+    // 2. Queue cloud sync (debounced)
+    // ONLY run if syncStatus is 'ready' to avoid overwriting cloud with empty cache
     if (SyncService.accessToken && cloudEnabled && syncStatus === 'ready') {
       const timer = setTimeout(async () => {
         setIsSyncing(true);
-        await SyncService.saveToCloud(userData);
-        setIsSyncing(false);
+        try {
+          await SyncService.saveToCloud(userData);
+        } catch (e) {
+          console.error("Background sync failed", e);
+        } finally {
+          setIsSyncing(false);
+        }
       }, 3000);
       return () => clearTimeout(timer);
     }
@@ -86,19 +95,22 @@ const App: React.FC = () => {
     SyncService.setToken(token);
     setCloudEnabled(true);
     localStorage.setItem('luna_cloud_enabled', 'true');
-    setSyncStatus('checking');
+    setSyncStatus('discovering');
     setIsSyncing(true);
     try {
       const cloudData = await SyncService.downloadFromCloud();
       if (cloudData) {
-        if (confirm("Existing vault found in your Drive. Restore your history now?")) {
+        const localDataPresent = userData.logs.length > 0 || userData.symptoms.length > 0;
+        if (!localDataPresent || confirm("Existing vault found! Restore your previous history now?")) {
           setUserData(cloudData);
+          alert("Success! History restored from Drive.");
         }
       } else {
+        // No file found, create a new one with current local data
         await SyncService.saveToCloud(userData);
       }
     } catch (e) {
-      alert("Could not connect to Drive.");
+      alert("Connection to Drive failed.");
     } finally {
       setIsSyncing(false);
       setSyncStatus('ready');
@@ -138,14 +150,16 @@ const App: React.FC = () => {
         {isSyncing && (
           <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-full border border-indigo-100 animate-pulse transition-all">
             <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
-            <span className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest">{syncStatus === 'checking' ? 'Checking Cloud' : 'Vaulting...'}</span>
+            <span className="text-[9px] font-bold text-indigo-600 uppercase tracking-widest">
+              {syncStatus === 'discovering' ? 'Finding Vault...' : 'Vaulting...'}
+            </span>
           </div>
         )}
       </nav>
 
       <main className="max-w-xl mx-auto px-6 pt-28">
         {activeTab === 'overview' && (
-          <div className="space-y-10">
+          <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <section className="relative h-80 flex flex-col items-center justify-center text-center overflow-hidden rounded-[3.5rem] bg-white shadow-2xl shadow-rose-100/50 border border-white transition-all">
               <div className={`absolute inset-0 opacity-10 ${PHASE_COLORS[currentPhase]}`}></div>
               <div className="relative z-10">
